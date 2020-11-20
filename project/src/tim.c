@@ -58,97 +58,97 @@ volatile uint32_t Cnt_1,Cnt_2,Cnt_3,Cnt_4;
 uint8_t Start_Calculate,Start_Count;
 extern uint8_t Enabled_1,Enabled_2,Enabled_3,Enabled_4;
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)		//¶¨Ê±Æ÷ÖĞ¶Ï»Øµ÷º¯Êı
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)		//å®šæ—¶å™¨ä¸­æ–­å›è°ƒå‡½æ•°
 {
-	if(htim==&htim6)															//Õâ¸öµØ·½ÊÇÅĞ¶ÏÊÇ·ñÊÇ¶¨Ê±Æ÷6
+	if(htim==&htim6)															//è¿™ä¸ªåœ°æ–¹æ˜¯åˆ¤æ–­æ˜¯å¦æ˜¯å®šæ—¶å™¨6
 	{
 		Start_Count++;
 		
-		if(Enabled_1==1)											//Í¨µÀ1¿ªÆô
+		if(Enabled_1==1)											//é€šé“1å¼€å¯
 		{
-			Cnt_1=TIM2->CNT;										//¶ÁÈ¡¶¨Ê±Æ÷2µÄ¼ÆÊıÆ÷Öµ
+			Cnt_1=TIM2->CNT;										//è¯»å–å®šæ—¶å™¨2çš„è®¡æ•°å™¨å€¼
 			
-			if(Cnt_1>Channel1_MAX)								//¶¨±êÖ´ĞĞ¹ı³Ì  È¡ÆÏÌÑÌÇ×î´óÅ¨¶ÈÖµ
+			if(Cnt_1>Channel1_MAX)								//å®šæ ‡æ‰§è¡Œè¿‡ç¨‹  å–è‘¡è„ç³–æœ€å¤§æµ“åº¦å€¼
 				Channel1_MAX=Cnt_1;	
 		
-			if(Start_Count==2)									//È¡µÚ¶şÃëµÄÆµÂÊÖµ
+			if(Start_Count==2)									//å–ç¬¬äºŒç§’çš„é¢‘ç‡å€¼
 				Channel1_MIN=Cnt_1;
 			
-			if(Start_Count>=23)									//33ÊÇ·´Ó¦30Ãë£¬23ÊÇ·´Ó¦20Ãë
-				HAL_TIM_Base_Stop_IT(&htim2); 				//¼ì²âÍê³É£¬¹Ø±Õ¶¨Ê±Æ÷2
+			if(Start_Count>=23)									//33æ˜¯ååº”30ç§’ï¼Œ23æ˜¯ååº”20ç§’
+				HAL_TIM_Base_Stop_IT(&htim2); 				//æ£€æµ‹å®Œæˆï¼Œå…³é—­å®šæ—¶å™¨2
 			
-			TIM2->CNT=0;											//Çåµô¶¨Ê±Æ÷2µÄ¼ÆÊıÆ÷									
+			TIM2->CNT=0;											//æ¸…æ‰å®šæ—¶å™¨2çš„è®¡æ•°å™¨									
 		}
 
-		if(Enabled_2==1)											//Í¨µÀ2¿ªÆô
+		if(Enabled_2==1)											//é€šé“2å¼€å¯
 		{
-			Cnt_2=TIM3->CNT;										//¶ÁÈ¡¶¨Ê±Æ÷2µÄ¼ÆÊıÆ÷Öµ
+			Cnt_2=TIM3->CNT;										//è¯»å–å®šæ—¶å™¨2çš„è®¡æ•°å™¨å€¼
 			
-			if(Cnt_2>Channel2_MAX)								//¶¨±êÖ´ĞĞ¹ı³Ì  È¡ÆÏÌÑÌÇ×î´óÅ¨¶ÈÖµ
+			if(Cnt_2>Channel2_MAX)								//å®šæ ‡æ‰§è¡Œè¿‡ç¨‹  å–è‘¡è„ç³–æœ€å¤§æµ“åº¦å€¼
 				Channel2_MAX=Cnt_2;	
 		
-			if(Start_Count==2)									//È¡µÚ¶şÃëµÄÆµÂÊÖµ
+			if(Start_Count==2)									//å–ç¬¬äºŒç§’çš„é¢‘ç‡å€¼
 				Channel2_MIN=Cnt_2;
 			
-			if(Start_Count>=23)									//33ÊÇ·´Ó¦30Ãë£¬23ÊÇ·´Ó¦20Ãë
+			if(Start_Count>=23)									//33æ˜¯ååº”30ç§’ï¼Œ23æ˜¯ååº”20ç§’
 			{
-				Channel2_MAX = Channel2_MAX*24+10 ;			//»ñÈ¡Í¨µÀ¶şÕæÊµµÄ×î´óÆµÂÊÖµ
-				Channel2_MIN = Channel2_MIN*24+10 ;			//»ñÈ¡Í¨µÀ¶şÕæÊµµÄ×îĞ¡ÆµÂÊÖµ
+				Channel2_MAX = Channel2_MAX*24+10 ;			//è·å–é€šé“äºŒçœŸå®çš„æœ€å¤§é¢‘ç‡å€¼
+				Channel2_MIN = Channel2_MIN*24+10 ;			//è·å–é€šé“äºŒçœŸå®çš„æœ€å°é¢‘ç‡å€¼
 				
-				HAL_TIM_Base_Stop_IT(&htim3); 				//¼ì²âÍê³É£¬¹Ø±Õ¶¨Ê±Æ÷3
+				HAL_TIM_Base_Stop_IT(&htim3); 				//æ£€æµ‹å®Œæˆï¼Œå…³é—­å®šæ—¶å™¨3
 			}
 			
-			TIM3->CNT=0;											//Çåµô¶¨Ê±Æ÷2µÄ¼ÆÊıÆ÷									
+			TIM3->CNT=0;											//æ¸…æ‰å®šæ—¶å™¨2çš„è®¡æ•°å™¨									
 		}		
 
-		if(Enabled_3==1)											//Í¨µÀ3¿ªÆô
+		if(Enabled_3==1)											//é€šé“3å¼€å¯
 		{
-			Cnt_3=TIM1->CNT;										//¶ÁÈ¡¶¨Ê±Æ÷2µÄ¼ÆÊıÆ÷Öµ
+			Cnt_3=TIM1->CNT;										//è¯»å–å®šæ—¶å™¨2çš„è®¡æ•°å™¨å€¼
 			
-			if(Cnt_3>Channel3_MAX)								//¶¨±êÖ´ĞĞ¹ı³Ì  È¡ÆÏÌÑÌÇ×î´óÅ¨¶ÈÖµ
+			if(Cnt_3>Channel3_MAX)								//å®šæ ‡æ‰§è¡Œè¿‡ç¨‹  å–è‘¡è„ç³–æœ€å¤§æµ“åº¦å€¼
 				Channel3_MAX=Cnt_3;	
 		
-			if(Start_Count==2)									//È¡µÚ¶şÃëµÄÆµÂÊÖµ
+			if(Start_Count==2)									//å–ç¬¬äºŒç§’çš„é¢‘ç‡å€¼
 				Channel3_MIN=Cnt_3;
 			
-			if(Start_Count>=23)									//33ÊÇ·´Ó¦30Ãë£¬23ÊÇ·´Ó¦20Ãë
+			if(Start_Count>=23)									//33æ˜¯ååº”30ç§’ï¼Œ23æ˜¯ååº”20ç§’
 			{
-				Channel3_MAX = Channel3_MAX*24+10 ;			//»ñÈ¡Í¨µÀÈıÕæÊµµÄ×î´óÆµÂÊÖµ
-				Channel3_MIN = Channel3_MIN*24+10 ;			//»ñÈ¡Í¨µÀÈıÕæÊµµÄ×îĞ¡ÆµÂÊÖµ
+				Channel3_MAX = Channel3_MAX*24+10 ;			//è·å–é€šé“ä¸‰çœŸå®çš„æœ€å¤§é¢‘ç‡å€¼
+				Channel3_MIN = Channel3_MIN*24+10 ;			//è·å–é€šé“ä¸‰çœŸå®çš„æœ€å°é¢‘ç‡å€¼
 				
-				HAL_TIM_Base_Stop_IT(&htim1); 				//¼ì²âÍê³É£¬¹Ø±Õ¶¨Ê±Æ÷1
+				HAL_TIM_Base_Stop_IT(&htim1); 				//æ£€æµ‹å®Œæˆï¼Œå…³é—­å®šæ—¶å™¨1
 			}
 			
-			TIM1->CNT=0;											//Çåµô¶¨Ê±Æ÷2µÄ¼ÆÊıÆ÷									
+			TIM1->CNT=0;											//æ¸…æ‰å®šæ—¶å™¨2çš„è®¡æ•°å™¨									
 		}		
 		
-		if(Enabled_4==1)											//Í¨µÀ4¿ªÆô
+		if(Enabled_4==1)											//é€šé“4å¼€å¯
 		{
-			Cnt_4=TIM8->CNT;										//¶ÁÈ¡¶¨Ê±Æ÷2µÄ¼ÆÊıÆ÷Öµ
+			Cnt_4=TIM8->CNT;										//è¯»å–å®šæ—¶å™¨2çš„è®¡æ•°å™¨å€¼
 			
-			if(Cnt_4>Channel4_MAX)								//¶¨±êÖ´ĞĞ¹ı³Ì  È¡ÆÏÌÑÌÇ×î´óÅ¨¶ÈÖµ
+			if(Cnt_4>Channel4_MAX)								//å®šæ ‡æ‰§è¡Œè¿‡ç¨‹  å–è‘¡è„ç³–æœ€å¤§æµ“åº¦å€¼
 				Channel4_MAX=Cnt_4;	
 		
-			if(Start_Count==2)									//È¡µÚ¶şÃëµÄÆµÂÊÖµ
+			if(Start_Count==2)									//å–ç¬¬äºŒç§’çš„é¢‘ç‡å€¼
 				Channel4_MIN=Cnt_4;
 			
-			if(Start_Count>=23)									//33ÊÇ·´Ó¦30Ãë£¬23ÊÇ·´Ó¦20Ãë
+			if(Start_Count>=23)									//33æ˜¯ååº”30ç§’ï¼Œ23æ˜¯ååº”20ç§’
 			{
-				Channel4_MAX = Channel4_MAX*24+10 ;			//»ñÈ¡Í¨µÀ¶şÕæÊµµÄ×î´óÆµÂÊÖµ
-				Channel4_MIN = Channel4_MIN*24+10 ;			//»ñÈ¡Í¨µÀ¶şÕæÊµµÄ×îĞ¡ÆµÂÊÖµ
+				Channel4_MAX = Channel4_MAX*24+10 ;			//è·å–é€šé“äºŒçœŸå®çš„æœ€å¤§é¢‘ç‡å€¼
+				Channel4_MIN = Channel4_MIN*24+10 ;			//è·å–é€šé“äºŒçœŸå®çš„æœ€å°é¢‘ç‡å€¼
 				
-				HAL_TIM_Base_Stop_IT(&htim8); 				//¼ì²âÍê³É£¬¹Ø±Õ¶¨Ê±Æ÷8				
+				HAL_TIM_Base_Stop_IT(&htim8); 				//æ£€æµ‹å®Œæˆï¼Œå…³é—­å®šæ—¶å™¨8				
 			}
 			
-			TIM8->CNT=0;											//Çåµô¶¨Ê±Æ÷2µÄ¼ÆÊıÆ÷									
+			TIM8->CNT=0;											//æ¸…æ‰å®šæ—¶å™¨2çš„è®¡æ•°å™¨									
 		}
 
-		if(Start_Count>=23)										//33ÊÇ·´Ó¦30Ãë£¬23ÊÇ·´Ó¦20Ãë
+		if(Start_Count>=23)										//33æ˜¯ååº”30ç§’ï¼Œ23æ˜¯ååº”20ç§’
 		{
 			Start_Count=0;
-			Start_Calculate=0x01;							//¶¨±ê¼ì²â½áÊø±êÖ¾Î»
-			HAL_TIM_Base_Stop_IT(&htim6); 				//¼ì²âÍê³É£¬¹Ø±Õ¶¨Ê±Æ÷6
-			TIM6->CNT=0;										//Çå³ı¶¨Ê±Æ÷6µÄ¼ÆÊıÖµ
+			Start_Calculate=0x01;							//å®šæ ‡æ£€æµ‹ç»“æŸæ ‡å¿—ä½
+			HAL_TIM_Base_Stop_IT(&htim6); 				//æ£€æµ‹å®Œæˆï¼Œå…³é—­å®šæ—¶å™¨6
+			TIM6->CNT=0;										//æ¸…é™¤å®šæ—¶å™¨6çš„è®¡æ•°å€¼
 		}
 		
 	}
@@ -157,15 +157,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)		//¶¨Ê±Æ÷ÖĞ¶Ï»Øµ÷º¯Ê
 
 
 /* TIM1 init function */
-void MX_TIM1_Init(void)									//Í¨µÀÈı
+void MX_TIM1_Init(void)									//é€šé“ä¸‰
 {
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
 
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 23;						//·ÖÆµÏµÊı  ×î´ó¿ÉÒÔÍ³¼Æ1500.000HZµÄÆµÂÊ
+  htim1.Init.Prescaler = 23;						//åˆ†é¢‘ç³»æ•°  æœ€å¤§å¯ä»¥ç»Ÿè®¡1500.000HZçš„é¢‘ç‡
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 0xffff;						//ÖØ×°ÔØÖµ
+  htim1.Init.Period = 0xffff;						//é‡è£…è½½å€¼
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
@@ -191,7 +191,7 @@ void MX_TIM1_Init(void)									//Í¨µÀÈı
 
 }
 /* TIM2 init function */
-void MX_TIM2_Init(void)									//Í¨µÀÒ»
+void MX_TIM2_Init(void)									//é€šé“ä¸€
 {
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
@@ -224,15 +224,15 @@ void MX_TIM2_Init(void)									//Í¨µÀÒ»
 
 }
 /* TIM3 init function */
-void MX_TIM3_Init(void)									//Í¨µÀ¶ş
+void MX_TIM3_Init(void)									//é€šé“äºŒ
 {
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
 
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 23;						//·ÖÆµÏµÊı
+  htim3.Init.Prescaler = 23;						//åˆ†é¢‘ç³»æ•°
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 0xffff;						//ÖØ×°ÔØÖµ
+  htim3.Init.Period = 0xffff;						//é‡è£…è½½å€¼
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
   {
@@ -257,7 +257,7 @@ void MX_TIM3_Init(void)									//Í¨µÀ¶ş
 
 }
 /* TIM6 init function */
-void MX_TIM6_Init(void)											//1Ãë½øÒ»´ÎÖĞ¶Ï
+void MX_TIM6_Init(void)											//1ç§’è¿›ä¸€æ¬¡ä¸­æ–­
 {
   TIM_MasterConfigTypeDef sMasterConfig;
 
@@ -279,15 +279,15 @@ void MX_TIM6_Init(void)											//1Ãë½øÒ»´ÎÖĞ¶Ï
 
 }
 /* TIM8 init function */
-void MX_TIM8_Init(void)									//Í¨µÀËÄ
+void MX_TIM8_Init(void)									//é€šé“å››
 {
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
 
   htim8.Instance = TIM8;
-  htim8.Init.Prescaler = 0;						  //·ÖÆµÏµÊı
+  htim8.Init.Prescaler = 0;						  //åˆ†é¢‘ç³»æ•°
   htim8.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim8.Init.Period = 0xffff;						//ÖØ×°ÔØÖµ
+  htim8.Init.Period = 0xffff;						//é‡è£…è½½å€¼
   htim8.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim8.Init.RepetitionCounter = 0;
   if (HAL_TIM_Base_Init(&htim8) != HAL_OK)

@@ -72,7 +72,7 @@ void USART6_IRQHandler(void)
 		
 		if( (Rx_Cnt==13) && (RX_Buf[1]==0xAA) && (RX_Buf[13]==0xA5) )
 		{
-			if( RX_Buf[2]==0x11 )				//检查板子编号是否为17
+			if( RX_Buf[2]==0x11 )				//妫�鏌ユ澘瀛愮紪鍙锋槸鍚︿负17
 				RX_Flag=2;
 			Rx_Cnt=0;
 			Rx_Mark=0;

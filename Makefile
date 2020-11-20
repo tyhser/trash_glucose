@@ -110,5 +110,7 @@ clean:
 project_clen:
 	rm -rf $(BUILD_DIR)/Project
 flash:
-	st-flash --reset  write app/Four_Channels.bin 0x8000000
-	#JLinkExe -device STM32F405RG -if SWD -speed 16000 jlinkbat
+	st-flash --reset  write app/Four_Channels.bin 0x8000000||exit 1
+	@echo Flash done.
+
+#JLinkExe -device STM32F405RG -if SWD -speed 16000 jlinkbat
