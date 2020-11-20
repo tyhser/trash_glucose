@@ -42,8 +42,8 @@
 /* External variables --------------------------------------------------------*/
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim6;
-extern DMA_HandleTypeDef hdma_usart6_tx;
-extern UART_HandleTypeDef huart6;
+extern DMA_HandleTypeDef hdma_usart2_tx;
+extern UART_HandleTypeDef huart2;
 
 /******************************************************************************/
 /*            Cortex-M4 Processor Interruption and Exception Handlers         */ 
@@ -52,12 +52,12 @@ extern uint8_t RX_Buf[14],RX_Flag;
 uint8_t Rx_Cnt,Rx_Mark,Notarize;
 
 
-void USART6_IRQHandler(void)
+void USART2_IRQHandler(void)
 {
-	huart6.RxXferCount=14;
-	if( __HAL_UART_GET_FLAG(&huart6,UART_FLAG_RXNE) )
+	huart2.RxXferCount=14;
+	if( __HAL_UART_GET_FLAG(&huart2,UART_FLAG_RXNE) )
 	{	
-		uint8_t temp2=USART6->DR;
+		uint8_t temp2=USART2->DR;
 		if( (0x55==temp2) && (Rx_Cnt==0) )
 			Rx_Mark=1;
 				
@@ -80,7 +80,7 @@ void USART6_IRQHandler(void)
 			RX_Buf[0]=0x55;
 		}
 	}
-  HAL_UART_IRQHandler(&huart6);
+  HAL_UART_IRQHandler(&huart2);
 }
 
 
@@ -262,12 +262,12 @@ void TIM6_DAC_IRQHandler(void)
 /**
 * @brief This function handles DMA2 stream6 global interrupt.
 */
-void DMA2_Stream6_IRQHandler(void)
+void DMA1_Stream6_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA2_Stream6_IRQn 0 */
 
   /* USER CODE END DMA2_Stream6_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_usart6_tx);
+  HAL_DMA_IRQHandler(&hdma_usart2_tx);
   /* USER CODE BEGIN DMA2_Stream6_IRQn 1 */
 
   /* USER CODE END DMA2_Stream6_IRQn 1 */
