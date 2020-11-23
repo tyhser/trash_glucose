@@ -57,8 +57,13 @@ uint32_t Concentration_1,Concentration_2,Concentration_3,Concentration_4;			//�
 uint8_t RX_Buf[14],RX_Flag,count_1=0,count_2=0,count_3=0,count_4=0,Order_Type,Enabled_1,Enabled_2,Enabled_3,Enabled_4;
 uint8_t Feedback[44],Calibrate_1=0,Calibrate_2=0,Calibrate_3=0,Calibrate_4=0;				//定标及测样反馈数组
 
+uint8_t active_channel_mask;
+
 uint8_t LED_Mark;				//LED灯
 uint32_t LED_Count;			//LED灯
+
+uint8_t get_active_channel_mask(uint8_t channel_words[4]);
+void channel_timer_on_off(channel_t chx, bool state);
 
 int main(void)
 {
@@ -91,6 +96,7 @@ int main(void)
 			if(RX_Buf[3]==0x37)	
 			{
                 LOG_I("Channel select");
+                active_channel_mask |= get_active_channel_mask(&RX_Buf[4]);
 				count_1=0;
 				count_2=0;
 				count_3=0;
@@ -99,34 +105,8 @@ int main(void)
 				Channel2_MAX=0;
 				Channel3_MAX=0;
 				Channel4_MAX=0;
-				
-				if(RX_Buf[4]==0xA1)				//通道一选择判断
-					Enabled_1=1;
-				else
-					Enabled_1=0;
 
-				if(RX_Buf[5]==0xA2)				//通道二选择判断
-					Enabled_2=1;
-				else
-					Enabled_2=0;				
-				
-				if(RX_Buf[6]==0xA3)				//通道三选择判断
-					Enabled_3=1;
-				else
-					Enabled_3=0;				
-
-				if(RX_Buf[7]==0xA4)				//通道四选择判断
-					Enabled_4=1;
-				else
-					Enabled_4=0;
-
-                LOG_I("Channel 1, 2, 3, 4:%d, %d, %d, %d", Enabled_1, Enabled_2, Enabled_3, Enabled_4);
-				
-				HAL_TIM_Base_Stop_IT(&htim2); 								//检测完成，关闭定时器2					
-				HAL_TIM_Base_Stop_IT(&htim3); 								//检测完成，关闭定时器3	
-				HAL_TIM_Base_Stop_IT(&htim1); 								//检测完成，关闭定时器1	
-				HAL_TIM_Base_Stop_IT(&htim8); 								//检测完成，关闭定时器8	
-                LOG_I("STOP all timer(2 3 1 8)");
+                channel_timer_on_off(CH1|CH2|CH3|CH4, STOP);
 				
 				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);					//已接收到数据 进行反馈
                 LOG_I("Send RX buf back");
@@ -138,16 +118,10 @@ int main(void)
 			{ 
                 LOG_I("start to 定标");
 				Order_Type=1;															//定标标志位
-								
-				if(Enabled_1==1)
-					HAL_TIM_Base_Start_IT(&htim2); 								//开启定时器2					
-				if(Enabled_2==1)
-					HAL_TIM_Base_Start_IT(&htim3); 								//开启定时器3
-				if(Enabled_3==1)
-					HAL_TIM_Base_Start_IT(&htim1); 								//开启定时器1
-				if(Enabled_4==1)
-					HAL_TIM_Base_Start_IT(&htim8); 								//开启定时器8
-				
+
+                channel_timer_on_off(active_channel_mask, START);
+                LOG_I("Start active channel timer");
+
                 LOG_I("start timer 2 3 1 8");
 				HAL_TIM_Base_Start_IT(&htim6); 									//开启定时器6 基础定时器
 
@@ -172,16 +146,8 @@ int main(void)
 
 				Order_Type=2;															//测样标志位
 				
-				if(Enabled_1==1)
-					HAL_TIM_Base_Start_IT(&htim2); 								//开启定时器2
-				if(Enabled_2==1)
-					HAL_TIM_Base_Start_IT(&htim3); 								//开启定时器3
-				if(Enabled_3==1)
-					HAL_TIM_Base_Start_IT(&htim1); 								//开启定时器1
-				if(Enabled_4==1)
-					HAL_TIM_Base_Start_IT(&htim8); 								//开启定时器8
-				
-                LOG_I("start timer 2 3 1 8");
+                channel_timer_on_off(active_channel_mask, START);
+
 				HAL_TIM_Base_Start_IT(&htim6); 									//开启定时器6 基础定时器
                 LOG_I("start basic timer 6");
 				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);						//通讯反馈					
@@ -587,6 +553,60 @@ int main(void)
 		
   }
 
+}
+
+uint8_t get_active_channel_mask(uint8_t channel_words[4])
+{
+    uint8_t mask = 0;
+    if (channel_words[0] == 0xA1) {
+        mask |= CH1;
+    }
+    if (channel_words[1] == 0xA2) {
+        mask |= CH2;
+    }
+    if (channel_words[2] == 0xA3) {
+        mask |= CH3;
+    }
+    if (channel_words[3] == 0xA4) {
+        mask |= CH4;
+    }
+    LOG_I("active channel mask:0x%x", mask);
+    return mask;
+}
+
+void channel_timer_on_off(channel_t chx, bool state)
+{
+    int i = 0;
+    channel_t channel_index = 1;
+    LOG_I("channel mask:0x%x set state:%d", chx, state);
+    if (chx & CH1) {
+        if (state) {
+            HAL_TIM_Base_Start_IT(&htim2);
+        } else {
+            HAL_TIM_Base_Stop_IT(&htim2);
+        }
+    }
+    if (chx & CH2) {
+        if (state) {
+            HAL_TIM_Base_Start_IT(&htim3);
+        } else {
+            HAL_TIM_Base_Stop_IT(&htim3);
+        }
+    }
+    if (chx & CH3) {
+        if (state) {
+            HAL_TIM_Base_Start_IT(&htim1);
+        } else {
+            HAL_TIM_Base_Stop_IT(&htim1);
+        }
+    }
+    if (chx & CH4) {
+        if (state) {
+            HAL_TIM_Base_Start_IT(&htim8);
+        } else {
+            HAL_TIM_Base_Stop_IT(&htim8);
+        }
+    }
 }
 
 /**

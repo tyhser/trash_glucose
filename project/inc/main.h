@@ -44,6 +44,8 @@
 /* Includes ------------------------------------------------------------------*/
 
 /* USER CODE BEGIN Includes */
+#include <stdint.h>
+#include <stdbool.h>
 
 /* USER CODE END Includes */
 
@@ -57,6 +59,14 @@
 /* #define USE_FULL_ASSERT    1U */
 
 /* USER CODE BEGIN Private defines */
+#define CH1 0x01
+#define CH2 0x02
+#define CH3 0x04
+#define CH4 0x08
+typedef uint8_t channel_t;
+
+#define START true
+#define STOP false
 
 /* USER CODE END Private defines */
 
