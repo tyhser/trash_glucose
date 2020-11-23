@@ -37,6 +37,7 @@
   ******************************************************************************
   */
 /* Includes ------------------------------------------------------------------*/
+#include <stdio.h>
 #include "main.h"
 #include "stm32f4xx_hal.h"
 #include "dma.h"
@@ -44,6 +45,7 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
+#include "syslog.h"
 
 void SystemClock_Config(void);
 extern volatile uint32_t Channel1_MAX,Channel2_MAX,Channel3_MAX,Channel4_MAX,Channel1_MIN,Channel2_MIN,Channel3_MIN,Channel4_MIN;
@@ -71,11 +73,13 @@ int main(void)
   MX_TIM8_Init();		//通道四
   MX_TIM6_Init();		//基础定时器 1秒
 	
-  MX_USART6_UART_Init();									//初始化串口6
-  HAL_UART_Receive_IT(&huart6,RX_Buf,14);			   //开启串口6接收中断
+  MX_USART2_UART_Init();									//初始化串口6
+  MX_USART1_UART_Init();									//初始化串口6
+  HAL_UART_Receive_IT(&huart2,RX_Buf,14);			   //开启串口6接收中断
 
   MX_IWDG_Init();
 	
+  LOG_I("Init complete");
   while(1)
   {
 		/********** 串口数据接收 **********/		
@@ -86,6 +90,7 @@ int main(void)
 			/********** 通道选择 开始 **********/
 			if(RX_Buf[3]==0x37)	
 			{
+                LOG_I("Channel select");
 				count_1=0;
 				count_2=0;
 				count_3=0;
@@ -114,19 +119,24 @@ int main(void)
 					Enabled_4=1;
 				else
 					Enabled_4=0;
+
+                LOG_I("Channel 1, 2, 3, 4:%d, %d, %d, %d", Enabled_1, Enabled_2, Enabled_3, Enabled_4);
 				
 				HAL_TIM_Base_Stop_IT(&htim2); 								//检测完成，关闭定时器2					
 				HAL_TIM_Base_Stop_IT(&htim3); 								//检测完成，关闭定时器3	
 				HAL_TIM_Base_Stop_IT(&htim1); 								//检测完成，关闭定时器1	
 				HAL_TIM_Base_Stop_IT(&htim8); 								//检测完成，关闭定时器8	
+                LOG_I("STOP all timer(2 3 1 8)");
 				
-				HAL_UART_Transmit_DMA(&huart6,RX_Buf,14);					//已接收到数据 进行反馈
+				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);					//已接收到数据 进行反馈
+                LOG_I("Send RX buf back");
  			}
 			/********** 通道选择 结束 **********/		
 
 			/********** 接收到定标、测样指令 开始 **********/
 			else if( RX_Buf[3]==0x33 )												//定标指令51  0x33	
 			{ 
+                LOG_I("start to 定标");
 				Order_Type=1;															//定标标志位
 								
 				if(Enabled_1==1)
@@ -138,15 +148,23 @@ int main(void)
 				if(Enabled_4==1)
 					HAL_TIM_Base_Start_IT(&htim8); 								//开启定时器8
 				
+                LOG_I("start timer 2 3 1 8");
 				HAL_TIM_Base_Start_IT(&htim6); 									//开启定时器6 基础定时器
-				HAL_UART_Transmit_DMA(&huart6,RX_Buf,14);						//通讯反馈
+
+                LOG_I("start basic timer 6");
+				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);						//通讯反馈
+                LOG_I("Send RX buf back");
 			}
 			
 			else if( RX_Buf[3]==0x34 )												//定标结果查询52  0x34
-				HAL_UART_Transmit_DMA(&huart6,Feedback,44);					//进行定标反馈和频率上传
-			
+            {
+				HAL_UART_Transmit_DMA(&huart2,Feedback,44);					//进行定标反馈和频率上传
+                LOG_I("upload feedback");
+            }
+
 			else if( RX_Buf[3]==0x35 )												//测样指令53  0x35
 			{
+                LOG_I("start to 测样");
 				Calibrate_1=0;
 				Calibrate_2=0;
 				Calibrate_3=0;
@@ -163,12 +181,18 @@ int main(void)
 				if(Enabled_4==1)
 					HAL_TIM_Base_Start_IT(&htim8); 								//开启定时器8
 				
+                LOG_I("start timer 2 3 1 8");
 				HAL_TIM_Base_Start_IT(&htim6); 									//开启定时器6 基础定时器
-				HAL_UART_Transmit_DMA(&huart6,RX_Buf,14);						//通讯反馈					
+                LOG_I("start basic timer 6");
+				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);						//通讯反馈					
+                LOG_I("Send RX buf back");
 			}
 			
 			else if( RX_Buf[3]==0x36 )												//测样结果查询54  0x36
-				HAL_UART_Transmit_DMA(&huart6,Feedback,44);					//进行测样反馈和频率上传
+            {
+				HAL_UART_Transmit_DMA(&huart2,Feedback,44);					//进行测样反馈和频率上传
+                LOG_I("upload feedback");
+            }
 
 			/********** 接收到定标、测样指令 结束 **********/
 		
@@ -177,6 +201,8 @@ int main(void)
 		/************ 定标 开始 ************/
 		if( (Start_Calculate==0x01) && (Order_Type==1) )						//定标数据处理	
 		{
+            LOG_I("定标数据处理...");
+
 			Start_Calculate=0;
 			Order_Type=0;
 			
@@ -450,6 +476,7 @@ int main(void)
 		/************ 浓度检测 开始 ************/
 		if( (Start_Calculate==0x01) && (Order_Type==2) )						//检测数据处理
 		{
+            LOG_I("检测数据处理...");
 			Start_Calculate=0;
 			Order_Type=0;
 			
