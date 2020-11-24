@@ -68,6 +68,26 @@ typedef uint8_t channel_t;
 #define START true
 #define STOP false
 
+#define CALIBRATE_INIT 0
+#define CALIBRATE_FINISH 1
+#define CALIBRATE_ENZYME_DEACTIVATION 0xB1
+#define CALIBRATE_VALUE_ERROR 0xC1
+typedef uint8_t calibrate_status_t;
+
+typedef struct {
+    uint32_t volatile freq_max;
+    uint32_t volatile freq_min;
+    uint32_t volatile timer_cnt;
+    uint32_t std_value;
+    uint32_t concentration;
+    uint8_t calibrate;
+    TIM_HandleTypeDef timer_handle;
+
+} channel_context_t;
+
+
+uint8_t get_active_channel_mask(void);
+bool is_chx_enable(channel_t chx);
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

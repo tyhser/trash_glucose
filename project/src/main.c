@@ -6,7 +6,7 @@
   ******************************************************************************
   ** This notice applies to any and all portions of this file
   * that are not between comment pairs USER CODE BEGIN and
-  * USER CODE END. Other portions of this file, whether 
+  * USER CODE END. Other portions of this file, whether
   * inserted by the user or by software development tools
   * are owned by their respective copyright owners.
   *
@@ -46,15 +46,17 @@
 #include "usart.h"
 #include "gpio.h"
 #include "syslog.h"
+channel_context_t chx_info[4];
 
 void SystemClock_Config(void);
 extern volatile uint32_t Channel1_MAX,Channel2_MAX,Channel3_MAX,Channel4_MAX,Channel1_MIN,Channel2_MIN,Channel3_MIN,Channel4_MIN;
+
 extern uint8_t Start_Calculate;
 volatile uint32_t Difference_1,Difference_2,Difference_3,Difference_4;				//频率差
 uint32_t StandardValue_1,StandardValue_2,StandardValue_3,StandardValue_4;			//定标分母
 uint32_t Concentration_1,Concentration_2,Concentration_3,Concentration_4;			//浓度
 
-uint8_t RX_Buf[14],RX_Flag,count_1=0,count_2=0,count_3=0,count_4=0,Order_Type,Enabled_1,Enabled_2,Enabled_3,Enabled_4;
+uint8_t RX_Buf[14],RX_Flag,count_1=0,count_2=0,count_3=0,count_4=0,Order_Type;
 uint8_t Feedback[44],Calibrate_1=0,Calibrate_2=0,Calibrate_3=0,Calibrate_4=0;				//定标及测样反馈数组
 
 uint8_t active_channel_mask;
@@ -62,60 +64,56 @@ uint8_t active_channel_mask;
 uint8_t LED_Mark;				//LED灯
 uint32_t LED_Count;			//LED灯
 
-uint8_t get_active_channel_mask(uint8_t channel_words[4]);
+uint8_t read_active_channel_mask(uint8_t channel_words[4]);
 void channel_timer_on_off(channel_t chx, bool state);
 
 int main(void)
 {
-  HAL_Init();
-  SystemClock_Config();
-  MX_GPIO_Init();
-  MX_DMA_Init();
-	
-  MX_TIM2_Init();		//通道一
-  MX_TIM3_Init();		//通道二
-  MX_TIM1_Init();		//通道三
-  MX_TIM8_Init();		//通道四
-  MX_TIM6_Init();		//基础定时器 1秒
-	
-  MX_USART2_UART_Init();									//初始化串口6
-  MX_USART1_UART_Init();									//初始化串口6
-  HAL_UART_Receive_IT(&huart2,RX_Buf,14);			   //开启串口6接收中断
+    HAL_Init();
+    SystemClock_Config();
+    MX_GPIO_Init();
+    MX_DMA_Init();
+    timer_init();
+    MX_USART2_UART_Init();									//初始化串口6
+    MX_USART1_UART_Init();									//初始化串口6
+    HAL_UART_Receive_IT(&huart2,RX_Buf,14);			   //开启串口6接收中断
 
-  MX_IWDG_Init();
-	
-  LOG_I("Init complete");
-  while(1)
-  {
-		/********** 串口数据接收 **********/		
-		if(RX_Flag==2)
+    MX_IWDG_Init();
+
+    LOG_I("Init complete");
+    while(1)
+    {
+		/********** 串口数据接收 **********/
+        if(RX_Flag==2)
 		{
 			RX_Flag=0;
-					
+
 			/********** 通道选择 开始 **********/
-			if(RX_Buf[3]==0x37)	
+			if(RX_Buf[3]==0x37)
 			{
                 LOG_I("Channel select");
-                active_channel_mask |= get_active_channel_mask(&RX_Buf[4]);
+                active_channel_mask |= read_active_channel_mask(&RX_Buf[4]);
 				count_1=0;
 				count_2=0;
 				count_3=0;
 				count_4=0;
+                __disable_irq();
 				Channel1_MAX=0;
 				Channel2_MAX=0;
 				Channel3_MAX=0;
 				Channel4_MAX=0;
+                __enable_irq();
 
                 channel_timer_on_off(CH1|CH2|CH3|CH4, STOP);
-				
+
 				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);					//已接收到数据 进行反馈
                 LOG_I("Send RX buf back");
  			}
-			/********** 通道选择 结束 **********/		
+			/********** 通道选择 结束 **********/
 
 			/********** 接收到定标、测样指令 开始 **********/
-			else if( RX_Buf[3]==0x33 )												//定标指令51  0x33	
-			{ 
+			else if( RX_Buf[3]==0x33 )												//定标指令51  0x33
+			{
                 LOG_I("start to 定标");
 				Order_Type=1;															//定标标志位
 
@@ -129,7 +127,7 @@ int main(void)
 				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);						//通讯反馈
                 LOG_I("Send RX buf back");
 			}
-			
+
 			else if( RX_Buf[3]==0x34 )												//定标结果查询52  0x34
             {
 				HAL_UART_Transmit_DMA(&huart2,Feedback,44);					//进行定标反馈和频率上传
@@ -145,131 +143,121 @@ int main(void)
 				Calibrate_4=0;
 
 				Order_Type=2;															//测样标志位
-				
+
                 channel_timer_on_off(active_channel_mask, START);
 
 				HAL_TIM_Base_Start_IT(&htim6); 									//开启定时器6 基础定时器
                 LOG_I("start basic timer 6");
-				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);						//通讯反馈					
+				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);						//通讯反馈
                 LOG_I("Send RX buf back");
 			}
-			
+
 			else if( RX_Buf[3]==0x36 )												//测样结果查询54  0x36
             {
-				HAL_UART_Transmit_DMA(&huart2,Feedback,44);					//进行测样反馈和频率上传
+				HAL_UART_Transmit_DMA(&huart2,Feedback,44);			//进行测样反馈和频率上传
                 LOG_I("upload feedback");
             }
 
 			/********** 接收到定标、测样指令 结束 **********/
-		
+
 		}
-		
+
 		/************ 定标 开始 ************/
-		if( (Start_Calculate==0x01) && (Order_Type==1) )						//定标数据处理	
-		{
+		if((Start_Calculate==0x01) && (Order_Type==1)) {
             LOG_I("定标数据处理...");
 
+            __disable_irq();
 			Start_Calculate=0;
+            __enable_irq();
 			Order_Type=0;
-			
-			if( (Enabled_1==1) && (Calibrate_1==0) )									//通道一 定标判断
+
+			if( (active_channel_mask & CH1) && (Calibrate_1==0) )
 			{
-				Difference_1=Channel1_MAX-Channel1_MIN;								//取差值
-				
-				if( (Difference_1<8500000) && (Channel1_MAX<15000000) ) 			//定标结果判断  先取消了异常判断
-				{
-					if( Difference_1>5000 )																		//定标结果判断  频率差小于10K即判断失活 先取消了失活判定   
-					{
+                Difference_1=Channel1_MAX-Channel1_MIN;
+				if((Difference_1<8500000) && (Channel1_MAX<15000000)) {
+                    /*定标结果判断  频率差小于10K即判断失活*/
+					if (Difference_1>5000) {
 						count_1++;
-						if(count_1==1)
-						{
-							StandardValue_1=Difference_1;												//通道一 取频率差做分母
+						if(count_1==1) {
+							StandardValue_1=Difference_1;
 						}
-						if(count_1==2)																							
-						{
-							Concentration_1=((float)Difference_1/StandardValue_1)*100;			//通道一 浓度计算，精确到1
-							if( (Concentration_1<=96)||(103<=Concentration_1) )							//浓度值偏差大，重新设置分母
-							{
-								StandardValue_1=Difference_1;																	//通道一 本次定标不通过更新分母
-								count_1=1;
-							}
-							else
-							{
-								count_1=0;															//定标完成，清除count
+						if (count_1==2) {
+                            /*通道一 浓度计算，精确到1*/
+                            Concentration_1=((float)Difference_1/StandardValue_1)*100;
+                            /*浓度值偏差大，重新设置分母*/
+                            if( (Concentration_1<=96)||(103<=Concentration_1) )	{
+                                /*通道一 本次定标不通过更新分母*/
 								StandardValue_1=Difference_1;
+                                count_1=1;
+                            } else {
+								/*定标完成，清除count*/
+                                count_1=0;
+                                StandardValue_1=Difference_1;
 								Calibrate_1=1;
-							}
-						}
+                            }
+                        }
+                    } else {
+#ifdef CALIBRATE_ERROR_ENABLE
+						count_1=0;
+						Calibrate_1=0xB1;		//通道一 酶膜失活 [预留]
+#endif
 					}
-//					else
-//					{
-//						count_1=0;
-//						Calibrate_1=0xB1;							//通道一 酶膜失活 [预留]
-//					}						
+  			    } else {
+#ifdef CALIBRATE_ERROR_ENABLE
+					count_1=0;
+					Calibrate_1=0xC1;			//通道一 数值异常 [预留]
+#endif
 				}
-//				else
-//				{
-//					count_1=0;
-//					Calibrate_1=0xC1;								//通道一 数值异常 [预留]
-//				}				
 			}
-			
-			if( (Enabled_2==1) && (Calibrate_2==0) )									//通道二 定标判断
-			{
-				Difference_2=Channel2_MAX-Channel2_MIN;								//取差值
-				
-				if( (Difference_2<8500000) && (Channel2_MAX<15000000) ) 			//定标结果判断  先取消了异常判断
-				{
-					if( Difference_2>5000 )																//定标结果判断  频率差小于10K即判断失活 先取消了失活判定   
-					{
-						count_2++;	
-						if(count_2==1)
-						{
-							StandardValue_2=Difference_2;												//通道二 取频率差做分母
+
+			if ((active_channel_mask & CH2) && (Calibrate_2==0)) {
+				Difference_2=Channel2_MAX-Channel2_MIN;
+
+				if ((Difference_2<8500000) && (Channel2_MAX<15000000)) {
+					if (Difference_2>5000) {
+						count_2++;
+						if(count_2==1) {
+							StandardValue_2=Difference_2;
 						}
-						if(count_2==2)																							
-						{
-							Concentration_2=((float)Difference_2/StandardValue_2)*100;		//通道二 浓度计算，精确到1
-							if( (Concentration_2<=96)||(103<=Concentration_2) )				//浓度值偏差大，重新设置分母
-							{
-								StandardValue_2=Difference_2;											//通道二 本次定标不通过更新分母
+						if(count_2==2) {
+							Concentration_2=((float)Difference_2/StandardValue_2)*100;
+							if ((Concentration_2<=96)||(103<=Concentration_2)) {
+								StandardValue_2=Difference_2;
 								count_2=1;
-							}
-							else
-							{
-								count_2=0;																	//定标完成，清除count
+							} else {
+								count_2=0;
 								StandardValue_2=Difference_2;
 								Calibrate_2=1;
 							}
 						}
+					} else {
+#ifdef CALIBRATE_ERROR_ENABLE
+						count_2=0;
+						Calibrate_2=0xB1;		//通道二 酶膜失活 [预留]
+#endif
 					}
-//					else
-//					{
-//						count_2=0;
-//						Calibrate_2=0xB1;							//通道二 酶膜失活 [预留]
-//					}						
+  			    } else {
+#ifdef CALIBRATE_ERROR_ENABLE
+					count_2=0;
+					Calibrate_2=0xC1;			//通道二 数值异常 [预留]
+#endif
 				}
-//				else
-//				{
-//					count_2=0;
-//					Calibrate_2=0xC1;								//通道二 数值异常 [预留]
-//				}				
-			}			
-			
-			if( (Enabled_3==1) && (Calibrate_3==0) )									//通道三 定标判断
+			}
+
+			if( (active_channel_mask & CH3) && (Calibrate_3==0) )						//通道三 定标判断
 			{
-				Difference_3=Channel3_MAX-Channel3_MIN;								//取差值
-				
-				if( (Difference_3<8500000) && (Channel3_MAX<15000000) ) 			//定标结果判断  先取消了异常判断
+				Difference_3=Channel3_MAX-Channel3_MIN;						//取差值
+
+				if( (Difference_3<8500000) && (Channel3_MAX<15000000) ) 	//定标结果判断  先取消了异常判断
 				{
-					if( Difference_3>5000 )																//定标结果判断  频率差小于10K即判断失活 先取消了失活判定   
+					if( Difference_3>5000 )			//定标结果判断  频率差小于10K即判断失活 先取消了失活判定
 					{
 						count_3++;
 						if(count_3==1)
 						{
-							StandardValue_3=Difference_3;												//通道三 取频率差做分母
+							StandardValue_3=Difference_3;
 						}
-						if(count_3==2)																							
+						if(count_3==2)
 						{
 							Concentration_3=((float)Difference_3/StandardValue_3)*100;		//通道三 浓度计算，精确到1
 							if( (Concentration_3<=96)||(103<=Concentration_3) )				//浓度值偏差大，重新设置分母
@@ -284,34 +272,34 @@ int main(void)
 								Calibrate_3=1;
 							}
 						}
+					} else {
+#ifdef CALIBRATE_ERROR_ENABLE
+						count_3=0;
+						Calibrate_3=0xB1;							//通道三 酶膜失活 [预留]
+#endif
 					}
-//					else
-//					{
-//						count_3=0;
-//						Calibrate_3=0xB1;							//通道三 酶膜失活 [预留]
-//					}						
+  			    } else {
+#ifdef CALIBRATE_ERROR_ENABLE
+					count_3=0;
+					Calibrate_3=0xC1;								//通道三 数值异常 [预留]
+#endif
 				}
-//				else
-//				{
-//					count_3=0;
-//					Calibrate_3=0xC1;								//通道三 数值异常 [预留]
-//				}				
 			}
 
-			if( (Enabled_4==1) && (Calibrate_4==0) )									//通道四 定标判断
+			if( (active_channel_mask & CH4) && (Calibrate_4==0) )									//通道四 定标判断
 			{
 				Difference_4=Channel4_MAX-Channel4_MIN;								//取差值
-				
+
 				if( (Difference_4<8500000) && (Channel4_MAX<15000000) ) 			//定标结果判断  先取消了异常判断
 				{
-					if( Difference_4>5000 )																//定标结果判断  频率差小于10K即判断失活 先取消了失活判定   
+					if( Difference_4>5000 )																//定标结果判断  频率差小于10K即判断失活 先取消了失活判定
 					{
 						count_4++;
 						if(count_4==1)
 						{
 							StandardValue_4=Difference_4;												//通道四 取频率差做分母
 						}
-						if(count_4==2)																							
+						if(count_4==2)
 						{
 							Concentration_4=((float)Difference_4/StandardValue_4)*100;		//通道四 浓度计算，精确到1
 							if( (Concentration_4<=96)||(103<=Concentration_4) )				//浓度值偏差大，重新设置分母
@@ -326,71 +314,72 @@ int main(void)
 								Calibrate_4=1;
 							}
 						}
+					} else {
+#ifdef CALIBRATE_ERROR_ENABLE
+						count_4=0;
+						Calibrate_4=0xB1;							//通道四 酶膜失活 [预留]
+#endif
 					}
-//					else
-//					{
-//						count_4=0;
-//						Calibrate_4=0xB1;							//通道四 酶膜失活 [预留]
-//					}						
+  			    } else {
+#ifdef CALIBRATE_ERROR_ENABLE
+					count_4=0;
+					Calibrate_4=0xC1;								//通道四 数值异常 [预留]
+#endif
 				}
-//				else
-//				{
-//					count_4=0;
-//					Calibrate_4=0xC1;								//通道四 数值异常 [预留]
-//				}				
-			}	
-			
+			}
+
 			/************************ 定标结果判断 **********************/
-			if( ( ((Enabled_1==1)&&(Calibrate_1==1))||(Enabled_1==0) ) && 
-			    ( ((Enabled_2==1)&&(Calibrate_2==1))||(Enabled_2==0) ) && 
-				 ( ((Enabled_3==1)&&(Calibrate_3==1))||(Enabled_3==0) ) && 
-				 ( ((Enabled_4==1)&&(Calibrate_4==1))||(Enabled_4==0) )  
-			  )
+            if ((Calibrate_1==1||!is_chx_enable(CH1)) &&
+                (Calibrate_2==1||!is_chx_enable(CH2)) &&
+                (Calibrate_3==1||!is_chx_enable(CH3)) &&
+                (Calibrate_4==1||!is_chx_enable(CH4)))
 			{
 				Calibrate_1=0;
 				Calibrate_2=0;
 				Calibrate_3=0;
 				Calibrate_4=0;
-				Feedback[2]=0x05;															//定标通过――5		//继续定标是――1
+				Feedback[2]=0x05;											//定标通过――5		//继续定标是――1
 			}
 			/************************* 此为预留功能，勿删 *************************/
-//			else if( (Calibrate_1!=0xB1) && (Calibrate_1!=0xC1) &&
-//						(Calibrate_2!=0xB1) && (Calibrate_2!=0xC1) &&
-//						(Calibrate_3!=0xB1) && (Calibrate_3!=0xC1) &&
-//						(Calibrate_4!=0xB1) && (Calibrate_4!=0xC1) 			
-//					 )
-//				Feedback[2]=0x01;															//定标通过――5		//继续定标是――1
-//			
-//			else if( (Calibrate_1==0xB1) || (Calibrate_1==0xC1) ||
-//						(Calibrate_2==0xB1) || (Calibrate_2==0xC1) ||
-//						(Calibrate_3==0xB1) || (Calibrate_3==0xC1) ||
-//						(Calibrate_4==0xB1) || (Calibrate_4==0xC1) 		
-//					 )
-//			{
-//				Feedback[2]=0x00;
-//				Feedback[3]=Calibrate_1;
-//				Feedback[4]=Calibrate_2;
-//				Feedback[5]=Calibrate_3;
-//				Feedback[6]=Calibrate_4;
-//				Calibrate_1=0;
-//				Calibrate_2=0;
-//				Calibrate_3=0;
-//				Calibrate_4=0;
-//			}
-
-			else			//使用预留功能时，这两行注释掉
+#ifdef CALIBRATE_ERROR_ENABLE
+			else if( (Calibrate_1!=0xB1) && (Calibrate_1!=0xC1) &&
+						(Calibrate_2!=0xB1) && (Calibrate_2!=0xC1) &&
+						(Calibrate_3!=0xB1) && (Calibrate_3!=0xC1) &&
+						(Calibrate_4!=0xB1) && (Calibrate_4!=0xC1)
+					 )
 				Feedback[2]=0x01;															//定标通过――5		//继续定标是――1
-			
+
+			else if( (Calibrate_1==0xB1) || (Calibrate_1==0xC1) ||
+						(Calibrate_2==0xB1) || (Calibrate_2==0xC1) ||
+						(Calibrate_3==0xB1) || (Calibrate_3==0xC1) ||
+						(Calibrate_4==0xB1) || (Calibrate_4==0xC1)
+					 )
+			{
+				Feedback[2]=0x00;
+				Feedback[3]=Calibrate_1;
+				Feedback[4]=Calibrate_2;
+				Feedback[5]=Calibrate_3;
+				Feedback[6]=Calibrate_4;
+				Calibrate_1=0;
+				Calibrate_2=0;
+				Calibrate_3=0;
+				Calibrate_4=0;
+			}
+#else
+			else			//使用预留功能时，这两行注释掉WTF
+				Feedback[2]=0x01;	//定标通过――5		//继续定标是――1
+#endif
+
 			Feedback[0]=0x0a;
 			Feedback[1]=0x0c;
-			
+
 			Feedback[3]=0x00;
 			Feedback[4]=0x00;
 			Feedback[5]=0x00;
-			Feedback[6]=0x00;	
-			
-			Feedback[7]=0x05;										
-			
+			Feedback[6]=0x00;
+
+			Feedback[7]=0x05;
+
 			Feedback[8]=Channel1_MAX>>16;				//通道一 最大值上传
 			Feedback[9]=Channel1_MAX>>8;				//最大值上传
 			Feedback[10]=Channel1_MAX;					//最大值上传
@@ -400,7 +389,7 @@ int main(void)
 			Feedback[14]=Difference_1>>16;			//通道一 差值上传
 			Feedback[15]=Difference_1>>8;				//差值上传
 			Feedback[16]=Difference_1;					//差值上传
-			
+
 			Feedback[17]=Channel2_MAX>>16;			//通道二 最大值上传
 			Feedback[18]=Channel2_MAX>>8;				//最大值上传
 			Feedback[19]=Channel2_MAX;					//最大值上传
@@ -410,7 +399,7 @@ int main(void)
 			Feedback[23]=Difference_2>>16;			//通道二 差值上传
 			Feedback[24]=Difference_2>>8;				//差值上传
 			Feedback[25]=Difference_2;					//差值上传
-		
+
 			Feedback[26]=Channel3_MAX>>16;			//通道三 最大值上传
 			Feedback[27]=Channel3_MAX>>8;				//最大值上传
 			Feedback[28]=Channel3_MAX;					//最大值上传
@@ -420,7 +409,7 @@ int main(void)
 			Feedback[32]=Difference_3>>16;			//通道三 差值上传
 			Feedback[33]=Difference_3>>8;				//差值上传
 			Feedback[34]=Difference_3;					//差值上传
-			
+
 			Feedback[35]=Channel4_MAX>>16;			//通道四 最大值上传
 			Feedback[36]=Channel4_MAX>>8;				//最大值上传
 			Feedback[37]=Channel4_MAX;					//最大值上传
@@ -430,7 +419,7 @@ int main(void)
 			Feedback[41]=Difference_4>>16;			//通道四 差值上传
 			Feedback[42]=Difference_4>>8;				//差值上传
 			Feedback[43]=Difference_4;					//差值上传
-			
+
 			Channel1_MAX=0;
 			Channel2_MAX=0;
 			Channel3_MAX=0;
@@ -438,39 +427,41 @@ int main(void)
 
 		}
 		/************ 定标 结束 ************/
-		
+
 		/************ 浓度检测 开始 ************/
 		if( (Start_Calculate==0x01) && (Order_Type==2) )						//检测数据处理
 		{
             LOG_I("检测数据处理...");
+            __disable_irq();
 			Start_Calculate=0;
+            __enable_irq();
 			Order_Type=0;
-			
-			if(Enabled_1==1)				//通道一开启
+
+			if(active_channel_mask & CH1)				//通道一开启
 			{
 				Difference_1=Channel1_MAX-Channel1_MIN;
 				Concentration_1=((float)Difference_1/StandardValue_1)*1000;			//通道一浓度计算，精确到0.1位
 			}
-			
-			if(Enabled_2==1)				//通道二开启
+
+			if(active_channel_mask & CH2)				//通道二开启
 			{
 				Difference_2=Channel2_MAX-Channel2_MIN;
 				Concentration_2=((float)Difference_2/StandardValue_2)*1000;			//通道二浓度计算，精确到0.1位
 			}
-			
-			if(Enabled_3==1)				//通道三开启
+
+			if(active_channel_mask & CH3)				//通道三开启
 			{
 				Difference_3=Channel3_MAX-Channel3_MIN;
 				Concentration_3=((float)Difference_3/StandardValue_3)*1000;			//通道三浓度计算，精确到0.1位
 			}
 
-			if(Enabled_4==1)				//通道四开启
+			if(active_channel_mask & CH4)				//通道四开启
 			{
 				Difference_4=Channel4_MAX-Channel4_MIN;
 				Concentration_4=((float)Difference_4/StandardValue_4)*1000;			//通道四浓度计算，精确到0.1位
 			}
-			
-			
+
+
 			Feedback[0]=Concentration_1>>8;			 //通道一 浓度
 			Feedback[1]=Concentration_1;				  //通道一 浓度
 			Feedback[2]=Concentration_2>>8;			 //通道二 浓度
@@ -479,7 +470,7 @@ int main(void)
 			Feedback[5]=Concentration_3;				  //通道三 浓度
 			Feedback[6]=Concentration_4>>8;			 //通道四 浓度
 			Feedback[7]=Concentration_4;				  //通道四 浓度
-			
+
 			Feedback[8]=Channel1_MAX>>16;				//通道一 最大值上传
 			Feedback[9]=Channel1_MAX>>8;				//最大值上传
 			Feedback[10]=Channel1_MAX;					//最大值上传
@@ -489,7 +480,7 @@ int main(void)
 			Feedback[14]=Difference_1>>16;			//通道一 差值上传
 			Feedback[15]=Difference_1>>8;				//差值上传
 			Feedback[16]=Difference_1;					//差值上传
-			
+
 			Feedback[17]=Channel2_MAX>>16;			//通道二 最大值上传
 			Feedback[18]=Channel2_MAX>>8;				//最大值上传
 			Feedback[19]=Channel2_MAX;					//最大值上传
@@ -499,7 +490,7 @@ int main(void)
 			Feedback[23]=Difference_2>>16;			//通道二 差值上传
 			Feedback[24]=Difference_2>>8;				//差值上传
 			Feedback[25]=Difference_2;					//差值上传
-		
+
 			Feedback[26]=Channel3_MAX>>16;			//通道三 最大值上传
 			Feedback[27]=Channel3_MAX>>8;				//最大值上传
 			Feedback[28]=Channel3_MAX;					//最大值上传
@@ -509,7 +500,7 @@ int main(void)
 			Feedback[32]=Difference_3>>16;			//通道三 差值上传
 			Feedback[33]=Difference_3>>8;				//差值上传
 			Feedback[34]=Difference_3;					//差值上传
-			
+
 			Feedback[35]=Channel4_MAX>>16;			//通道四 最大值上传
 			Feedback[36]=Channel4_MAX>>8;				//最大值上传
 			Feedback[37]=Channel4_MAX;					//最大值上传
@@ -518,44 +509,40 @@ int main(void)
 			Feedback[40]=Channel4_MIN;					//最小值上传
 			Feedback[41]=Difference_4>>16;			//通道四 差值上传
 			Feedback[42]=Difference_4>>8;				//差值上传
-			Feedback[43]=Difference_4;					//差值上传			
-			
+			Feedback[43]=Difference_4;					//差值上传
+
+            __disable_irq();
 			Channel1_MAX=0;
 			Channel2_MAX=0;
 			Channel3_MAX=0;
 			Channel4_MAX=0;
-			
+            __enable_irq();
 		}
-		
-		
-		
+
 		/************ 浓度检测 结束 ************/
-		
-		
+
+
 		/********* LED灯闪烁 **********/
 		LED_Count++;
 		if(LED_Count%4255999==0)
 		{
 			LED_Count=0;
-			if(LED_Mark==0)
-			{
-				LED_Mark=1;
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
-			}
-			else
-			{
-				LED_Mark=0;
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
-			}
-		}	
-		
+            HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_8);
+		}
 		HAL_IWDG_Refresh(&hiwdg);			//IWDG看门狗喂狗
-		
   }
-
 }
 
-uint8_t get_active_channel_mask(uint8_t channel_words[4])
+bool is_chx_enable(channel_t chx)
+{
+    if (chx & active_channel_mask) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+uint8_t read_active_channel_mask(uint8_t channel_words[4])
 {
     uint8_t mask = 0;
     if (channel_words[0] == 0xA1) {
@@ -572,6 +559,11 @@ uint8_t get_active_channel_mask(uint8_t channel_words[4])
     }
     LOG_I("active channel mask:0x%x", mask);
     return mask;
+}
+
+uint8_t get_active_channel_mask(void)
+{
+    return active_channel_mask;
 }
 
 void channel_timer_on_off(channel_t chx, bool state)
@@ -619,13 +611,13 @@ void SystemClock_Config(void)
   RCC_OscInitTypeDef RCC_OscInitStruct;
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
 
-    /**Configure the main internal regulator output voltage 
+    /**Configure the main internal regulator output voltage
     */
   __HAL_RCC_PWR_CLK_ENABLE();
 
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-    /**Initializes the CPU, AHB and APB busses clocks 
+    /**Initializes the CPU, AHB and APB busses clocks
     */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
@@ -641,7 +633,7 @@ void SystemClock_Config(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
-    /**Initializes the CPU, AHB and APB busses clocks 
+    /**Initializes the CPU, AHB and APB busses clocks
     */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
@@ -655,11 +647,11 @@ void SystemClock_Config(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
-    /**Configure the Systick interrupt time 
+    /**Configure the Systick interrupt time
     */
   HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
 
-    /**Configure the Systick 
+    /**Configure the Systick
     */
   HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
 
@@ -696,7 +688,7 @@ void _Error_Handler(char *file, int line)
   * @retval None
   */
 void assert_failed(uint8_t* file, uint32_t line)
-{ 
+{
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */

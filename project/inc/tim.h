@@ -63,12 +63,7 @@ extern TIM_HandleTypeDef htim8;
 
 extern void _Error_Handler(char *, int);
 
-void MX_TIM1_Init(void);
-void MX_TIM2_Init(void);
-void MX_TIM3_Init(void);
-void MX_TIM6_Init(void);
-void MX_TIM8_Init(void);
-
+void timer_init(void);
 /* USER CODE BEGIN Prototypes */
 
 /* USER CODE END Prototypes */
