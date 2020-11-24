@@ -65,6 +65,8 @@
 #define CH4 0x08
 typedef uint8_t channel_t;
 
+#define CH_CNT 0x04
+
 #define START true
 #define STOP false
 
@@ -77,14 +79,23 @@ typedef uint8_t calibrate_status_t;
 typedef struct {
     uint32_t volatile freq_max;
     uint32_t volatile freq_min;
+    uint32_t volatile freq_diff;
     uint32_t volatile timer_cnt;
     uint32_t std_value;
     uint32_t concentration;
     uint8_t calibrate;
-    TIM_HandleTypeDef timer_handle;
 
 } channel_context_t;
 
+#pragma pack(push, 1)
+typedef struct {
+    uint32_t freq_max:24;
+    uint32_t freq_min:24;
+    uint32_t freq_diff:24;
+} calibrate_data_section_t;
+
+typedef uint16_t concentration_data_t[4];
+#pragma pack(pop)
 
 uint8_t get_active_channel_mask(void);
 bool is_chx_enable(channel_t chx);

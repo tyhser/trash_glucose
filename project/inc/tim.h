@@ -45,7 +45,6 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_hal.h"
-#include "main.h"
 
 /* USER CODE BEGIN Includes */
 
@@ -64,6 +63,7 @@ extern TIM_HandleTypeDef htim8;
 extern void _Error_Handler(char *, int);
 
 void timer_init(void);
+void channel_timer_on_off(channel_t chx, bool state);
 /* USER CODE BEGIN Prototypes */
 
 /* USER CODE END Prototypes */
