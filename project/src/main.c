@@ -6,7 +6,7 @@
   ******************************************************************************
   ** This notice applies to any and all portions of this file
   * that are not between comment pairs USER CODE BEGIN and
-  * USER CODE END. Other portions of this file, whether 
+  * USER CODE END. Other portions of this file, whether
   * inserted by the user or by software development tools
   * are owned by their respective copyright owners.
   *
@@ -47,75 +47,85 @@
 #include "gpio.h"
 #include "syslog.h"
 
-void SystemClock_Config(void);
-extern volatile uint32_t Channel1_MAX,Channel2_MAX,Channel3_MAX,Channel4_MAX,Channel1_MIN,Channel2_MIN,Channel3_MIN,Channel4_MIN;
-extern uint8_t Start_Calculate;
-volatile uint32_t Difference_1,Difference_2,Difference_3,Difference_4;				//频率差
-uint32_t StandardValue_1,StandardValue_2,StandardValue_3,StandardValue_4;			//定标分母
-uint32_t Concentration_1,Concentration_2,Concentration_3,Concentration_4;			//浓度
+#define FMAX(x) (chx_info[(x)].freq_max)
+#define FMIN(x) (chx_info[(x)].freq_min)
+#define FDIFF(x) (chx_info[(x)].freq_diff)
+#define CH_1 0
+#define CH_2 1
+#define CH_3 2
+#define CH_4 3
 
-uint8_t RX_Buf[14],RX_Flag,count_1=0,count_2=0,count_3=0,count_4=0,Order_Type,Enabled_1,Enabled_2,Enabled_3,Enabled_4;
-uint8_t Feedback[44],Calibrate_1=0,Calibrate_2=0,Calibrate_3=0,Calibrate_4=0;				//定标及测样反馈数组
+channel_context_t chx_info[4];
+
+void SystemClock_Config(void);
+
+extern uint8_t Start_Calculate;
+
+uint8_t RX_Buf[14], RX_Flag, Order_Type;
+uint8_t Feedback[44];				//定标及测样反馈数组
 
 uint8_t active_channel_mask;
 
-uint8_t LED_Mark;				//LED灯
 uint32_t LED_Count;			//LED灯
 
-uint8_t get_active_channel_mask(uint8_t channel_words[4]);
+uint8_t read_active_channel_mask(uint8_t channel_words[4]);
 void channel_timer_on_off(channel_t chx, bool state);
+
+void reset_all_channel_freq_max(void);
+void reset_all_channel_freq_min(void);
+void reset_all_channel_calibrate_count(void);
+void reset_all_channel_calibrate(void);
+
+bool is_all_channel_calibrate_finish(void);
+bool is_calibrate_any_channel_unknow_error(void);
+bool is_calibrate_any_channel_known_error(void);
+
+void calibrate_data_process(channel_t chx);
+
+static void fill_calibrate_feedback_chx(uint8_t *feedback);
+static void fill_concentration_feedback(uint8_t *feedback);
+static void update_concentration(uint8_t ch_x);
 
 int main(void)
 {
-  HAL_Init();
-  SystemClock_Config();
-  MX_GPIO_Init();
-  MX_DMA_Init();
-	
-  MX_TIM2_Init();		//通道一
-  MX_TIM3_Init();		//通道二
-  MX_TIM1_Init();		//通道三
-  MX_TIM8_Init();		//通道四
-  MX_TIM6_Init();		//基础定时器 1秒
-	
-  MX_USART2_UART_Init();									//初始化串口6
-  MX_USART1_UART_Init();									//初始化串口6
-  HAL_UART_Receive_IT(&huart2,RX_Buf,14);			   //开启串口6接收中断
+    HAL_Init();
+    SystemClock_Config();
+    MX_GPIO_Init();
+    MX_DMA_Init();
+    timer_init();
+    MX_USART2_UART_Init();									//初始化串口6
+    MX_USART1_UART_Init();									//初始化串口6
+    HAL_UART_Receive_IT(&huart2,RX_Buf,14);			   //开启串口6接收中断
 
-  MX_IWDG_Init();
-	
-  LOG_I("Init complete");
-  while(1)
-  {
-		/********** 串口数据接收 **********/		
-		if(RX_Flag==2)
+    MX_IWDG_Init();
+
+    LOG_I("Init complete");
+    while(1)
+    {
+		/********** 串口数据接收 **********/
+        if(RX_Flag==2)
 		{
 			RX_Flag=0;
-					
+
 			/********** 通道选择 开始 **********/
-			if(RX_Buf[3]==0x37)	
+			if(RX_Buf[3]==0x37)
 			{
                 LOG_I("Channel select");
-                active_channel_mask |= get_active_channel_mask(&RX_Buf[4]);
-				count_1=0;
-				count_2=0;
-				count_3=0;
-				count_4=0;
-				Channel1_MAX=0;
-				Channel2_MAX=0;
-				Channel3_MAX=0;
-				Channel4_MAX=0;
+                active_channel_mask |= read_active_channel_mask(&RX_Buf[4]);
+
+                reset_all_channel_calibrate_count();
+                reset_all_channel_freq_max();
 
                 channel_timer_on_off(CH1|CH2|CH3|CH4, STOP);
-				
+
 				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);					//已接收到数据 进行反馈
                 LOG_I("Send RX buf back");
  			}
-			/********** 通道选择 结束 **********/		
+			/********** 通道选择 结束 **********/
 
 			/********** 接收到定标、测样指令 开始 **********/
-			else if( RX_Buf[3]==0x33 )												//定标指令51  0x33	
-			{ 
+			else if( RX_Buf[3]==0x33 )												//定标指令51  0x33
+			{
                 LOG_I("start to 定标");
 				Order_Type=1;															//定标标志位
 
@@ -129,7 +139,7 @@ int main(void)
 				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);						//通讯反馈
                 LOG_I("Send RX buf back");
 			}
-			
+
 			else if( RX_Buf[3]==0x34 )												//定标结果查询52  0x34
             {
 				HAL_UART_Transmit_DMA(&huart2,Feedback,44);					//进行定标反馈和频率上传
@@ -139,423 +149,212 @@ int main(void)
 			else if( RX_Buf[3]==0x35 )												//测样指令53  0x35
 			{
                 LOG_I("start to 测样");
-				Calibrate_1=0;
-				Calibrate_2=0;
-				Calibrate_3=0;
-				Calibrate_4=0;
-
+                reset_all_channel_calibrate();
 				Order_Type=2;															//测样标志位
-				
+
                 channel_timer_on_off(active_channel_mask, START);
 
 				HAL_TIM_Base_Start_IT(&htim6); 									//开启定时器6 基础定时器
                 LOG_I("start basic timer 6");
-				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);						//通讯反馈					
+				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);						//通讯反馈
                 LOG_I("Send RX buf back");
 			}
-			
+
 			else if( RX_Buf[3]==0x36 )												//测样结果查询54  0x36
             {
-				HAL_UART_Transmit_DMA(&huart2,Feedback,44);					//进行测样反馈和频率上传
+				HAL_UART_Transmit_DMA(&huart2,Feedback,44);			//进行测样反馈和频率上传
                 LOG_I("upload feedback");
             }
 
 			/********** 接收到定标、测样指令 结束 **********/
-		
+
 		}
-		
+
 		/************ 定标 开始 ************/
-		if( (Start_Calculate==0x01) && (Order_Type==1) )						//定标数据处理	
-		{
+		if((Start_Calculate==0x01) && (Order_Type==1)) {
             LOG_I("定标数据处理...");
 
+            __disable_irq();
 			Start_Calculate=0;
+            __enable_irq();
 			Order_Type=0;
-			
-			if( (Enabled_1==1) && (Calibrate_1==0) )									//通道一 定标判断
-			{
-				Difference_1=Channel1_MAX-Channel1_MIN;								//取差值
-				
-				if( (Difference_1<8500000) && (Channel1_MAX<15000000) ) 			//定标结果判断  先取消了异常判断
-				{
-					if( Difference_1>5000 )																		//定标结果判断  频率差小于10K即判断失活 先取消了失活判定   
-					{
-						count_1++;
-						if(count_1==1)
-						{
-							StandardValue_1=Difference_1;												//通道一 取频率差做分母
-						}
-						if(count_1==2)																							
-						{
-							Concentration_1=((float)Difference_1/StandardValue_1)*100;			//通道一 浓度计算，精确到1
-							if( (Concentration_1<=96)||(103<=Concentration_1) )							//浓度值偏差大，重新设置分母
-							{
-								StandardValue_1=Difference_1;																	//通道一 本次定标不通过更新分母
-								count_1=1;
-							}
-							else
-							{
-								count_1=0;															//定标完成，清除count
-								StandardValue_1=Difference_1;
-								Calibrate_1=1;
-							}
-						}
-					}
-//					else
-//					{
-//						count_1=0;
-//						Calibrate_1=0xB1;							//通道一 酶膜失活 [预留]
-//					}						
-				}
-//				else
-//				{
-//					count_1=0;
-//					Calibrate_1=0xC1;								//通道一 数值异常 [预留]
-//				}				
-			}
-			
-			if( (Enabled_2==1) && (Calibrate_2==0) )									//通道二 定标判断
-			{
-				Difference_2=Channel2_MAX-Channel2_MIN;								//取差值
-				
-				if( (Difference_2<8500000) && (Channel2_MAX<15000000) ) 			//定标结果判断  先取消了异常判断
-				{
-					if( Difference_2>5000 )																//定标结果判断  频率差小于10K即判断失活 先取消了失活判定   
-					{
-						count_2++;	
-						if(count_2==1)
-						{
-							StandardValue_2=Difference_2;												//通道二 取频率差做分母
-						}
-						if(count_2==2)																							
-						{
-							Concentration_2=((float)Difference_2/StandardValue_2)*100;		//通道二 浓度计算，精确到1
-							if( (Concentration_2<=96)||(103<=Concentration_2) )				//浓度值偏差大，重新设置分母
-							{
-								StandardValue_2=Difference_2;											//通道二 本次定标不通过更新分母
-								count_2=1;
-							}
-							else
-							{
-								count_2=0;																	//定标完成，清除count
-								StandardValue_2=Difference_2;
-								Calibrate_2=1;
-							}
-						}
-					}
-//					else
-//					{
-//						count_2=0;
-//						Calibrate_2=0xB1;							//通道二 酶膜失活 [预留]
-//					}						
-				}
-//				else
-//				{
-//					count_2=0;
-//					Calibrate_2=0xC1;								//通道二 数值异常 [预留]
-//				}				
-			}			
-			
-			if( (Enabled_3==1) && (Calibrate_3==0) )									//通道三 定标判断
-			{
-				Difference_3=Channel3_MAX-Channel3_MIN;								//取差值
-				
-				if( (Difference_3<8500000) && (Channel3_MAX<15000000) ) 			//定标结果判断  先取消了异常判断
-				{
-					if( Difference_3>5000 )																//定标结果判断  频率差小于10K即判断失活 先取消了失活判定   
-					{
-						count_3++;
-						if(count_3==1)
-						{
-							StandardValue_3=Difference_3;												//通道三 取频率差做分母
-						}
-						if(count_3==2)																							
-						{
-							Concentration_3=((float)Difference_3/StandardValue_3)*100;		//通道三 浓度计算，精确到1
-							if( (Concentration_3<=96)||(103<=Concentration_3) )				//浓度值偏差大，重新设置分母
-							{
-								StandardValue_3=Difference_3;											//通道三 本次定标不通过更新分母
-								count_3=1;
-							}
-							else
-							{
-								count_3=0;																	//定标完成，清除count
-								StandardValue_3=Difference_3;
-								Calibrate_3=1;
-							}
-						}
-					}
-//					else
-//					{
-//						count_3=0;
-//						Calibrate_3=0xB1;							//通道三 酶膜失活 [预留]
-//					}						
-				}
-//				else
-//				{
-//					count_3=0;
-//					Calibrate_3=0xC1;								//通道三 数值异常 [预留]
-//				}				
-			}
 
-			if( (Enabled_4==1) && (Calibrate_4==0) )									//通道四 定标判断
+			if (active_channel_mask & CH1)
 			{
-				Difference_4=Channel4_MAX-Channel4_MIN;								//取差值
-				
-				if( (Difference_4<8500000) && (Channel4_MAX<15000000) ) 			//定标结果判断  先取消了异常判断
-				{
-					if( Difference_4>5000 )																//定标结果判断  频率差小于10K即判断失活 先取消了失活判定   
-					{
-						count_4++;
-						if(count_4==1)
-						{
-							StandardValue_4=Difference_4;												//通道四 取频率差做分母
-						}
-						if(count_4==2)																							
-						{
-							Concentration_4=((float)Difference_4/StandardValue_4)*100;		//通道四 浓度计算，精确到1
-							if( (Concentration_4<=96)||(103<=Concentration_4) )				//浓度值偏差大，重新设置分母
-							{
-								StandardValue_4=Difference_4;											//通道四 本次定标不通过更新分母
-								count_4=1;
-							}
-							else
-							{
-								count_4=0;																	//定标完成，清除count
-								StandardValue_4=Difference_4;
-								Calibrate_4=1;
-							}
-						}
-					}
-//					else
-//					{
-//						count_4=0;
-//						Calibrate_4=0xB1;							//通道四 酶膜失活 [预留]
-//					}						
-				}
-//				else
-//				{
-//					count_4=0;
-//					Calibrate_4=0xC1;								//通道四 数值异常 [预留]
-//				}				
-			}	
-			
+                calibrate_data_process(CH1);
+			}
+			if (active_channel_mask & CH2)
+			{
+                calibrate_data_process(CH2);
+			}
+			if (active_channel_mask & CH3)
+			{
+                calibrate_data_process(CH3);
+			}
+			if (active_channel_mask & CH4)
+			{
+                calibrate_data_process(CH4);
+			}
 			/************************ 定标结果判断 **********************/
-			if( ( ((Enabled_1==1)&&(Calibrate_1==1))||(Enabled_1==0) ) && 
-			    ( ((Enabled_2==1)&&(Calibrate_2==1))||(Enabled_2==0) ) && 
-				 ( ((Enabled_3==1)&&(Calibrate_3==1))||(Enabled_3==0) ) && 
-				 ( ((Enabled_4==1)&&(Calibrate_4==1))||(Enabled_4==0) )  
-			  )
+            if (is_all_channel_calibrate_finish())
 			{
-				Calibrate_1=0;
-				Calibrate_2=0;
-				Calibrate_3=0;
-				Calibrate_4=0;
-				Feedback[2]=0x05;															//定标通过――5		//继续定标是――1
+                reset_all_channel_calibrate();
+                Feedback[2]=0x05;											//定标通过――5		//继续定标是――1
 			}
 			/************************* 此为预留功能，勿删 *************************/
-//			else if( (Calibrate_1!=0xB1) && (Calibrate_1!=0xC1) &&
-//						(Calibrate_2!=0xB1) && (Calibrate_2!=0xC1) &&
-//						(Calibrate_3!=0xB1) && (Calibrate_3!=0xC1) &&
-//						(Calibrate_4!=0xB1) && (Calibrate_4!=0xC1) 			
-//					 )
-//				Feedback[2]=0x01;															//定标通过――5		//继续定标是――1
-//			
-//			else if( (Calibrate_1==0xB1) || (Calibrate_1==0xC1) ||
-//						(Calibrate_2==0xB1) || (Calibrate_2==0xC1) ||
-//						(Calibrate_3==0xB1) || (Calibrate_3==0xC1) ||
-//						(Calibrate_4==0xB1) || (Calibrate_4==0xC1) 		
-//					 )
-//			{
-//				Feedback[2]=0x00;
-//				Feedback[3]=Calibrate_1;
-//				Feedback[4]=Calibrate_2;
-//				Feedback[5]=Calibrate_3;
-//				Feedback[6]=Calibrate_4;
-//				Calibrate_1=0;
-//				Calibrate_2=0;
-//				Calibrate_3=0;
-//				Calibrate_4=0;
-//			}
-
-			else			//使用预留功能时，这两行注释掉
+#ifdef CALIBRATE_ERROR_ENABLE
+			else if(is_calibrate_any_channel_unknow_error()) {
 				Feedback[2]=0x01;															//定标通过――5		//继续定标是――1
-			
-			Feedback[0]=0x0a;
-			Feedback[1]=0x0c;
-			
-			Feedback[3]=0x00;
-			Feedback[4]=0x00;
-			Feedback[5]=0x00;
-			Feedback[6]=0x00;	
-			
-			Feedback[7]=0x05;										
-			
-			Feedback[8]=Channel1_MAX>>16;				//通道一 最大值上传
-			Feedback[9]=Channel1_MAX>>8;				//最大值上传
-			Feedback[10]=Channel1_MAX;					//最大值上传
-			Feedback[11]=Channel1_MIN>>16;			//通道一 最小值上传
-			Feedback[12]=Channel1_MIN>>8;				//最小值上传
-			Feedback[13]=Channel1_MIN;					//最小值上传
-			Feedback[14]=Difference_1>>16;			//通道一 差值上传
-			Feedback[15]=Difference_1>>8;				//差值上传
-			Feedback[16]=Difference_1;					//差值上传
-			
-			Feedback[17]=Channel2_MAX>>16;			//通道二 最大值上传
-			Feedback[18]=Channel2_MAX>>8;				//最大值上传
-			Feedback[19]=Channel2_MAX;					//最大值上传
-			Feedback[20]=Channel2_MIN>>16;			//通道二 最小值上传
-			Feedback[21]=Channel2_MIN>>8;				//最小值上传
-			Feedback[22]=Channel2_MIN;					//最小值上传
-			Feedback[23]=Difference_2>>16;			//通道二 差值上传
-			Feedback[24]=Difference_2>>8;				//差值上传
-			Feedback[25]=Difference_2;					//差值上传
-		
-			Feedback[26]=Channel3_MAX>>16;			//通道三 最大值上传
-			Feedback[27]=Channel3_MAX>>8;				//最大值上传
-			Feedback[28]=Channel3_MAX;					//最大值上传
-			Feedback[29]=Channel3_MIN>>16;			//通道三 最小值上传
-			Feedback[30]=Channel3_MIN>>8;				//最小值上传
-			Feedback[31]=Channel3_MIN;					//最小值上传
-			Feedback[32]=Difference_3>>16;			//通道三 差值上传
-			Feedback[33]=Difference_3>>8;				//差值上传
-			Feedback[34]=Difference_3;					//差值上传
-			
-			Feedback[35]=Channel4_MAX>>16;			//通道四 最大值上传
-			Feedback[36]=Channel4_MAX>>8;				//最大值上传
-			Feedback[37]=Channel4_MAX;					//最大值上传
-			Feedback[38]=Channel4_MIN>>16;			//通道四 最小值上传
-			Feedback[39]=Channel4_MIN>>8;				//最小值上传
-			Feedback[40]=Channel4_MIN;					//最小值上传
-			Feedback[41]=Difference_4>>16;			//通道四 差值上传
-			Feedback[42]=Difference_4>>8;				//差值上传
-			Feedback[43]=Difference_4;					//差值上传
-			
-			Channel1_MAX=0;
-			Channel2_MAX=0;
-			Channel3_MAX=0;
-			Channel4_MAX=0;
+            } else if (is_calibrate_any_channel_known_error()) {
+				Feedback[2]=0x00;
+				Feedback[3]=chx_info[CH_1].calibrate;
+				Feedback[4]=chx_info[CH_2].calibrate;
+				Feedback[5]=chx_info[CH_3].calibrate;
+				Feedback[6]=chx_info[CH_4].calibrate;
 
+                reset_all_channel_calibrate();
+			}
+#else
+			else			//使用预留功能时，这两行注释掉WTF
+				Feedback[2]=0x01;	//定标通过――5		//继续定标是――1
+#endif
+
+        Feedback[0]=0x0a;
+        Feedback[1]=0x0c;
+
+        Feedback[3]=0x00;
+        Feedback[4]=0x00;
+        Feedback[5]=0x00;
+        Feedback[6]=0x00;
+
+        Feedback[7]=0x05;
+
+        fill_calibrate_feedback_chx(&Feedback[8]);
+
+        reset_all_channel_freq_max();
 		}
 		/************ 定标 结束 ************/
-		
+
 		/************ 浓度检测 开始 ************/
-		if( (Start_Calculate==0x01) && (Order_Type==2) )						//检测数据处理
-		{
+        if ((Start_Calculate==0x01) && (Order_Type==2))						//检测数据处理
+        {
             LOG_I("检测数据处理...");
-			Start_Calculate=0;
-			Order_Type=0;
-			
-			if(Enabled_1==1)				//通道一开启
-			{
-				Difference_1=Channel1_MAX-Channel1_MIN;
-				Concentration_1=((float)Difference_1/StandardValue_1)*1000;			//通道一浓度计算，精确到0.1位
-			}
-			
-			if(Enabled_2==1)				//通道二开启
-			{
-				Difference_2=Channel2_MAX-Channel2_MIN;
-				Concentration_2=((float)Difference_2/StandardValue_2)*1000;			//通道二浓度计算，精确到0.1位
-			}
-			
-			if(Enabled_3==1)				//通道三开启
-			{
-				Difference_3=Channel3_MAX-Channel3_MIN;
-				Concentration_3=((float)Difference_3/StandardValue_3)*1000;			//通道三浓度计算，精确到0.1位
-			}
+            __disable_irq();
+            Start_Calculate=0;
+            __enable_irq();
+            Order_Type=0;
 
-			if(Enabled_4==1)				//通道四开启
-			{
-				Difference_4=Channel4_MAX-Channel4_MIN;
-				Concentration_4=((float)Difference_4/StandardValue_4)*1000;			//通道四浓度计算，精确到0.1位
-			}
-			
-			
-			Feedback[0]=Concentration_1>>8;			 //通道一 浓度
-			Feedback[1]=Concentration_1;				  //通道一 浓度
-			Feedback[2]=Concentration_2>>8;			 //通道二 浓度
-			Feedback[3]=Concentration_2;				  //通道二 浓度
-			Feedback[4]=Concentration_3>>8;			 //通道三 浓度
-			Feedback[5]=Concentration_3;				  //通道三 浓度
-			Feedback[6]=Concentration_4>>8;			 //通道四 浓度
-			Feedback[7]=Concentration_4;				  //通道四 浓度
-			
-			Feedback[8]=Channel1_MAX>>16;				//通道一 最大值上传
-			Feedback[9]=Channel1_MAX>>8;				//最大值上传
-			Feedback[10]=Channel1_MAX;					//最大值上传
-			Feedback[11]=Channel1_MIN>>16;			//通道一 最小值上传
-			Feedback[12]=Channel1_MIN>>8;				//最小值上传
-			Feedback[13]=Channel1_MIN;					//最小值上传
-			Feedback[14]=Difference_1>>16;			//通道一 差值上传
-			Feedback[15]=Difference_1>>8;				//差值上传
-			Feedback[16]=Difference_1;					//差值上传
-			
-			Feedback[17]=Channel2_MAX>>16;			//通道二 最大值上传
-			Feedback[18]=Channel2_MAX>>8;				//最大值上传
-			Feedback[19]=Channel2_MAX;					//最大值上传
-			Feedback[20]=Channel2_MIN>>16;			//通道二 最小值上传
-			Feedback[21]=Channel2_MIN>>8;				//最小值上传
-			Feedback[22]=Channel2_MIN;					//最小值上传
-			Feedback[23]=Difference_2>>16;			//通道二 差值上传
-			Feedback[24]=Difference_2>>8;				//差值上传
-			Feedback[25]=Difference_2;					//差值上传
-		
-			Feedback[26]=Channel3_MAX>>16;			//通道三 最大值上传
-			Feedback[27]=Channel3_MAX>>8;				//最大值上传
-			Feedback[28]=Channel3_MAX;					//最大值上传
-			Feedback[29]=Channel3_MIN>>16;			//通道三 最小值上传
-			Feedback[30]=Channel3_MIN>>8;				//最小值上传
-			Feedback[31]=Channel3_MIN;					//最小值上传
-			Feedback[32]=Difference_3>>16;			//通道三 差值上传
-			Feedback[33]=Difference_3>>8;				//差值上传
-			Feedback[34]=Difference_3;					//差值上传
-			
-			Feedback[35]=Channel4_MAX>>16;			//通道四 最大值上传
-			Feedback[36]=Channel4_MAX>>8;				//最大值上传
-			Feedback[37]=Channel4_MAX;					//最大值上传
-			Feedback[38]=Channel4_MIN>>16;			//通道四 最小值上传
-			Feedback[39]=Channel4_MIN>>8;				//最小值上传
-			Feedback[40]=Channel4_MIN;					//最小值上传
-			Feedback[41]=Difference_4>>16;			//通道四 差值上传
-			Feedback[42]=Difference_4>>8;				//差值上传
-			Feedback[43]=Difference_4;					//差值上传			
-			
-			Channel1_MAX=0;
-			Channel2_MAX=0;
-			Channel3_MAX=0;
-			Channel4_MAX=0;
-			
+            if(active_channel_mask & CH1)				//通道一开启
+            {
+                update_concentration(CH_1);
+            }
+
+            if(active_channel_mask & CH2)				//通道二开启
+            {
+                update_concentration(CH_2);
+            }
+
+            if(active_channel_mask & CH3)				//通道三开启
+            {
+                update_concentration(CH_3);
+            }
+
+            if(active_channel_mask & CH4)				//通道四开启
+            {
+                update_concentration(CH_4);
+            }
+
+            fill_concentration_feedback(&Feedback);
+            fill_calibrate_feedback_chx(&Feedback[8]);
+
+            reset_all_channel_freq_max();
 		}
-		
-		
-		
-		/************ 浓度检测 结束 ************/
-		
-		
-		/********* LED灯闪烁 **********/
-		LED_Count++;
-		if(LED_Count%4255999==0)
-		{
-			LED_Count=0;
-			if(LED_Mark==0)
-			{
-				LED_Mark=1;
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
-			}
-			else
-			{
-				LED_Mark=0;
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
-			}
-		}	
-		
-		HAL_IWDG_Refresh(&hiwdg);			//IWDG看门狗喂狗
-		
-  }
 
+		/************ 浓度检测 结束 ************/
+
+
+		/********* LED灯闪烁 **********/
+        LED_Count++;
+        if(LED_Count%4255999==0) {
+            LED_Count=0;
+            HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_8);
+        }
+        HAL_IWDG_Refresh(&hiwdg);			//IWDG看门狗喂狗
+    }
 }
 
-uint8_t get_active_channel_mask(uint8_t channel_words[4])
+static void update_concentration(uint8_t ch_x)
+{
+    chx_info[ch_x].freq_diff = chx_info[ch_x].freq_max - chx_info[ch_x].freq_min;
+    chx_info[ch_x].concentration = ((float)chx_info[ch_x].freq_diff/chx_info[ch_x].std_value) * 1000;
+}
+
+static void fill_calibrate_feedback_chx(uint8_t *feedback)
+{
+    calibrate_data_section_t data[4];
+    for (int i = 0; i < CH_CNT; i++) {
+        data[i].freq_max = chx_info[i].freq_max;
+        data[i].freq_min = chx_info[i].freq_min;
+        data[i].freq_diff = chx_info[i].freq_diff;
+    }
+    memcpy(feedback, data, sizeof(calibrate_data_section_t) * 4);
+}
+
+static void fill_concentration_feedback(uint8_t *feedback)
+{
+    concentration_data_t data;
+    for (int i = 0; i < CH_CNT; i++) {
+        data[i] = chx_info[i].concentration;
+    }
+    memcpy(feedback, data, sizeof(concentration_data_t));
+}
+
+void reset_all_channel_calibrate_count(void)
+{
+    chx_info[0].calibrate_cnt = 0;
+    chx_info[1].calibrate_cnt = 0;
+    chx_info[2].calibrate_cnt = 0;
+    chx_info[3].calibrate_cnt = 0;
+}
+
+void reset_all_channel_freq_max(void)
+{
+     __disable_irq();
+    chx_info[0].freq_max = 0;
+    chx_info[1].freq_max = 0;
+    chx_info[2].freq_max = 0;
+    chx_info[3].freq_max = 0;
+    __enable_irq();
+}
+
+void reset_all_channel_freq_min(void)
+{
+     __disable_irq();
+    chx_info[0].freq_min = 0;
+    chx_info[1].freq_min = 0;
+    chx_info[2].freq_min = 0;
+    chx_info[3].freq_min = 0;
+    __enable_irq();
+}
+
+void reset_all_channel_calibrate(void)
+{
+    chx_info[0].calibrate = 0;
+    chx_info[1].calibrate = 0;
+    chx_info[2].calibrate = 0;
+    chx_info[3].calibrate = 0;
+}
+
+bool is_chx_enable(channel_t chx)
+{
+    if (chx & active_channel_mask) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+uint8_t read_active_channel_mask(uint8_t channel_words[4])
 {
     uint8_t mask = 0;
     if (channel_words[0] == 0xA1) {
@@ -574,41 +373,106 @@ uint8_t get_active_channel_mask(uint8_t channel_words[4])
     return mask;
 }
 
-void channel_timer_on_off(channel_t chx, bool state)
+uint8_t get_active_channel_mask(void)
 {
-    int i = 0;
-    channel_t channel_index = 1;
-    LOG_I("channel mask:0x%x set state:%d", chx, state);
-    if (chx & CH1) {
-        if (state) {
-            HAL_TIM_Base_Start_IT(&htim2);
-        } else {
-            HAL_TIM_Base_Stop_IT(&htim2);
+    return active_channel_mask;
+}
+
+bool is_all_channel_calibrate_finish(void)
+{
+    bool ret = true;
+    for (int i = 0; i < CH_CNT; i++) {
+        if (chx_info[i].calibrate != CALIBRATE_FINISH && is_chx_enable(1<<i)) {
+            ret = false;
         }
     }
-    if (chx & CH2) {
-        if (state) {
-            HAL_TIM_Base_Start_IT(&htim3);
-        } else {
-            HAL_TIM_Base_Stop_IT(&htim3);
+    return ret;
+}
+
+bool is_calibrate_any_channel_unknow_error(void)
+{
+    if (!is_all_channel_calibrate_finish()) {
+        for (int i = 0; i < CH_CNT; i++) {
+            if (chx_info[i].calibrate == CALIBRATE_ENZYME_DEACTIVATION ||
+                chx_info[i].calibrate == CALIBRATE_VALUE_ERROR) {
+                return false;
+            }
         }
-    }
-    if (chx & CH3) {
-        if (state) {
-            HAL_TIM_Base_Start_IT(&htim1);
-        } else {
-            HAL_TIM_Base_Stop_IT(&htim1);
-        }
-    }
-    if (chx & CH4) {
-        if (state) {
-            HAL_TIM_Base_Start_IT(&htim8);
-        } else {
-            HAL_TIM_Base_Stop_IT(&htim8);
-        }
+        return true;
+    } else {
+        return false;
     }
 }
 
+bool is_calibrate_any_channel_known_error(void)
+{
+    if (!is_all_channel_calibrate_finish()) {
+        for (int i = 0; i < CH_CNT; i++) {
+            if (chx_info[i].calibrate == CALIBRATE_ENZYME_DEACTIVATION ||
+                chx_info[i].calibrate == CALIBRATE_VALUE_ERROR) {
+                return true;
+            }
+        }
+        return false;
+    } else {
+        return false;
+    }
+}
+
+void calibrate_data_process(channel_t chx)
+{
+    uint8_t ch_x = 0xff;
+    for (int i = 0; i < CH_CNT; i++) {
+        if ((1 << i) == chx) {
+            ch_x = i;
+        }
+    }
+    if (ch_x == 0xff) {
+        LOG_I("input chx error!");
+        return;
+    }
+    if (chx_info[ch_x].calibrate == CALIBRATE_INIT)
+	{
+        if (chx_info[ch_x].freq_diff < 8500000 && chx_info[ch_x].freq_diff <15000000) {
+            /*定标结果判断  频率差小于10K即判断失活*/
+            if (chx_info[ch_x].freq_diff > 5000) {
+                chx_info[ch_x].calibrate_cnt++;
+                if (chx_info[ch_x].calibrate_cnt == 1) {
+                    chx_info[ch_x].std_value = chx_info[ch_x].freq_diff;
+                }
+                if (chx_info[ch_x].calibrate_cnt == 2) {
+                    /*通道一 浓度计算，精确到1*/
+                    chx_info[ch_x].concentration = ((float)chx_info[ch_x].freq_diff/chx_info[ch_x].std_value)*100;
+                    /*浓度值偏差大，重新设置分母*/
+                    if (chx_info[ch_x].concentration <=96 || 103 <= chx_info[ch_x].concentration) {
+                        /*通道一 本次定标不通过更新分母*/
+                        chx_info[ch_x].std_value = chx_info[ch_x].freq_diff;
+                        chx_info[ch_x].calibrate_cnt = 1;
+                    } else {
+						/*定标完成，清除calibrate count*/
+                        chx_info[ch_x].calibrate_cnt = 0;
+                        chx_info[ch_x].std_value = chx_info[ch_x].freq_diff;
+                        chx_info[ch_x].calibrate = CALIBRATE_FINISH;
+                    }
+                }
+            } else {
+#ifdef CALIBRATE_ERROR_ENABLE
+                chx_info[ch_x].calibrate_cnt = 0;
+                /*通道一 酶膜失活 [预留]*/
+                chx_info[ch_x].calibrate = CALIBRATE_ENZYME_DEACTIVATION;
+#endif
+            }
+        } else {
+#ifdef CALIBRATE_ERROR_ENABLE
+            chx_info[ch_x].calibrate_cnt = 0;
+            /*通道一 数值异常 [预留]*/
+            chx_info[ch_x].calibrate = CALIBRATE_VALUE_ERROR;
+#endif
+        }
+    } else {
+
+    }
+}
 /**
   * @brief System Clock Configuration
   * @retval None
@@ -619,13 +483,13 @@ void SystemClock_Config(void)
   RCC_OscInitTypeDef RCC_OscInitStruct;
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
 
-    /**Configure the main internal regulator output voltage 
+    /**Configure the main internal regulator output voltage
     */
   __HAL_RCC_PWR_CLK_ENABLE();
 
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-    /**Initializes the CPU, AHB and APB busses clocks 
+    /**Initializes the CPU, AHB and APB busses clocks
     */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
@@ -641,7 +505,7 @@ void SystemClock_Config(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
-    /**Initializes the CPU, AHB and APB busses clocks 
+    /**Initializes the CPU, AHB and APB busses clocks
     */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
@@ -655,11 +519,11 @@ void SystemClock_Config(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
-    /**Configure the Systick interrupt time 
+    /**Configure the Systick interrupt time
     */
   HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
 
-    /**Configure the Systick 
+    /**Configure the Systick
     */
   HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
 
@@ -696,7 +560,7 @@ void _Error_Handler(char *file, int line)
   * @retval None
   */
 void assert_failed(uint8_t* file, uint32_t line)
-{ 
+{
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */

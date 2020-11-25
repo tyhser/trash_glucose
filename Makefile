@@ -73,8 +73,6 @@ endif
 
 include $(PROJ_PATH)/project/module.mk
 include $(PROJ_PATH)/Drivers/module.mk
-include $(PROJ_PATH)/Syslog/module.mk
-
 
 # link script
 LDSCRIPT = STM32F405RGTx_FLASH.ld

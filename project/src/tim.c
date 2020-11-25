@@ -41,8 +41,13 @@
 #include "tim.h"
 
 #include "gpio.h"
+#include "main.h"
 
 /* USER CODE BEGIN 0 */
+#define CH_1 0
+#define CH_2 1
+#define CH_3 2
+#define CH_4 3
 
 /* USER CODE END 0 */
 
@@ -52,109 +57,108 @@ TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim8;
 
-
-volatile uint32_t Channel1_MAX,Channel2_MAX,Channel3_MAX,Channel4_MAX,Channel1_MIN,Channel2_MIN,Channel3_MIN,Channel4_MIN;
-volatile uint32_t Cnt_1,Cnt_2,Cnt_3,Cnt_4;
+extern channel_context_t chx_info[4];
 uint8_t Start_Calculate,Start_Count;
-extern uint8_t Enabled_1,Enabled_2,Enabled_3,Enabled_4;
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)		//定时器中断回调函数
 {
-	if(htim==&htim6)															//这个地方是判断是否是定时器6
+	if (htim == &htim6)
 	{
 		Start_Count++;
-		
-		if(Enabled_1==1)											//通道1开启
+
+		if (is_chx_enable(CH1))
 		{
-			Cnt_1=TIM2->CNT;										//读取定时器2的计数器值
-			
-			if(Cnt_1>Channel1_MAX)								//定标执行过程  取葡萄糖最大浓度值
-				Channel1_MAX=Cnt_1;	
-		
-			if(Start_Count==2)									//取第二秒的频率值
-				Channel1_MIN=Cnt_1;
-			
-			if(Start_Count>=23)									//33是反应30秒，23是反应20秒
-				HAL_TIM_Base_Stop_IT(&htim2); 				//检测完成，关闭定时器2
-			
-			TIM2->CNT=0;											//清掉定时器2的计数器									
+            chx_info[CH_1].timer_cnt = TIM2->CNT;				//读取定时器2的计数器值
+
+			if (chx_info[CH_1].timer_cnt > chx_info[CH_1].freq_max)	//定标执行过程  取葡萄糖最大浓度值
+                chx_info[CH_1].freq_max = chx_info[CH_1].timer_cnt;
+
+			if(Start_Count==2)					//取第二秒的频率值
+                chx_info[CH_1].freq_min = chx_info[CH1].timer_cnt;
+
+            /*33是反应30秒，23是反应20秒*/
+			if (Start_Count>=23) {
+                channel_timer_on_off(CH1, STOP);
+                chx_info[CH_1].freq_diff = chx_info[CH_1].freq_max - chx_info[CH_1].freq_min;
+            }
+
+			TIM2->CNT=0;						//清掉定时器2的计数器
 		}
 
-		if(Enabled_2==1)											//通道2开启
-		{
-			Cnt_2=TIM3->CNT;										//读取定时器2的计数器值
-			
-			if(Cnt_2>Channel2_MAX)								//定标执行过程  取葡萄糖最大浓度值
-				Channel2_MAX=Cnt_2;	
-		
-			if(Start_Count==2)									//取第二秒的频率值
-				Channel2_MIN=Cnt_2;
-			
-			if(Start_Count>=23)									//33是反应30秒，23是反应20秒
-			{
-				Channel2_MAX = Channel2_MAX*24+10 ;			//获取通道二真实的最大频率值
-				Channel2_MIN = Channel2_MIN*24+10 ;			//获取通道二真实的最小频率值
-				
-				HAL_TIM_Base_Stop_IT(&htim3); 				//检测完成，关闭定时器3
-			}
-			
-			TIM3->CNT=0;											//清掉定时器2的计数器									
-		}		
+        if(is_chx_enable(CH2))
+        {
+            chx_info[CH_2].timer_cnt = TIM3->CNT;	//读取定时器2的计数器值
 
-		if(Enabled_3==1)											//通道3开启
-		{
-			Cnt_3=TIM1->CNT;										//读取定时器2的计数器值
-			
-			if(Cnt_3>Channel3_MAX)								//定标执行过程  取葡萄糖最大浓度值
-				Channel3_MAX=Cnt_3;	
-		
-			if(Start_Count==2)									//取第二秒的频率值
-				Channel3_MIN=Cnt_3;
-			
-			if(Start_Count>=23)									//33是反应30秒，23是反应20秒
+			if (chx_info[CH_2].timer_cnt > chx_info[CH_2].freq_max)	//定标执行过程  取葡萄糖最大浓度值
+                chx_info[CH_2].freq_max = chx_info[CH_2].timer_cnt;
+
+			if(Start_Count==2)					//取第二秒的频率值
+                chx_info[CH_2].freq_min = chx_info[CH2].timer_cnt;
+
+			if(Start_Count>=23)								//33是反应30秒，23是反应20秒
 			{
-				Channel3_MAX = Channel3_MAX*24+10 ;			//获取通道三真实的最大频率值
-				Channel3_MIN = Channel3_MIN*24+10 ;			//获取通道三真实的最小频率值
-				
-				HAL_TIM_Base_Stop_IT(&htim1); 				//检测完成，关闭定时器1
+                /*获取通道二真实的最大频率值*/
+                chx_info[CH_2].freq_max = chx_info[CH_2].freq_max * 24 + 10;
+                chx_info[CH_2].freq_min = chx_info[CH_2].freq_min * 24 + 10;
+                channel_timer_on_off(CH2, STOP);
+                chx_info[CH_2].freq_diff = chx_info[CH_2].freq_max - chx_info[CH_2].freq_min;
 			}
-			
-			TIM1->CNT=0;											//清掉定时器2的计数器									
-		}		
-		
-		if(Enabled_4==1)											//通道4开启
-		{
-			Cnt_4=TIM8->CNT;										//读取定时器2的计数器值
-			
-			if(Cnt_4>Channel4_MAX)								//定标执行过程  取葡萄糖最大浓度值
-				Channel4_MAX=Cnt_4;	
-		
-			if(Start_Count==2)									//取第二秒的频率值
-				Channel4_MIN=Cnt_4;
-			
-			if(Start_Count>=23)									//33是反应30秒，23是反应20秒
-			{
-				Channel4_MAX = Channel4_MAX*24+10 ;			//获取通道二真实的最大频率值
-				Channel4_MIN = Channel4_MIN*24+10 ;			//获取通道二真实的最小频率值
-				
-				HAL_TIM_Base_Stop_IT(&htim8); 				//检测完成，关闭定时器8				
-			}
-			
-			TIM8->CNT=0;											//清掉定时器2的计数器									
+
+			TIM3->CNT=0;									//清掉定时器2的计数器
 		}
 
-		if(Start_Count>=23)										//33是反应30秒，23是反应20秒
+		if(is_chx_enable(CH3))
+		{
+            chx_info[CH_3].timer_cnt = TIM1->CNT;	//读取定时器2的计数器值
+
+			if (chx_info[CH_3].timer_cnt > chx_info[CH_3].freq_max)	//定标执行过程  取葡萄糖最大浓度值
+                chx_info[CH_3].freq_max = chx_info[CH_3].timer_cnt;
+
+			if(Start_Count==2)							//取第二秒的频率值
+                chx_info[CH_3].freq_min = chx_info[CH3].timer_cnt;
+
+			if(Start_Count>=23)									//33是反应30秒，23是反应20秒
+			{
+                chx_info[CH_3].freq_max = chx_info[CH_3].freq_max * 24 + 10;
+                chx_info[CH_3].freq_min = chx_info[CH_3].freq_min * 24 + 10;
+                channel_timer_on_off(CH3, STOP);
+                chx_info[CH_3].freq_diff = chx_info[CH_3].freq_max - chx_info[CH_3].freq_min;
+			}
+
+			TIM1->CNT=0;											//清掉定时器2的计数器
+		}
+
+		if(is_chx_enable(CH4))
+		{
+            chx_info[CH_4].timer_cnt = TIM8->CNT;
+
+            if (chx_info[CH_4].timer_cnt > chx_info[CH_4].freq_max)	//定标执行过程  取葡萄糖最大浓度值
+                chx_info[CH_4].freq_max = chx_info[CH_4].timer_cnt;
+
+			if(Start_Count==2)								//取第二秒的频率值
+                chx_info[CH_4].freq_min = chx_info[CH4].timer_cnt;
+
+			if(Start_Count>=23)								//33是反应30秒，23是反应20秒
+			{
+                chx_info[CH_4].freq_max = chx_info[CH_4].freq_max * 24 + 10;
+                chx_info[CH_4].freq_min = chx_info[CH_4].freq_min * 24 + 10;
+
+                channel_timer_on_off(CH4, STOP);
+                chx_info[CH_4].freq_diff = chx_info[CH_4].freq_max - chx_info[CH_4].freq_min;
+			}
+
+			TIM8->CNT=0;									//清掉定时器2的计数器
+		}
+
+		if(Start_Count>=23)									//33是反应30秒，23是反应20秒
 		{
 			Start_Count=0;
 			Start_Calculate=0x01;							//定标检测结束标志位
 			HAL_TIM_Base_Stop_IT(&htim6); 				//检测完成，关闭定时器6
-			TIM6->CNT=0;										//清除定时器6的计数值
+			TIM6->CNT=0;									//清除定时器6的计数值
 		}
-		
 	}
 }
-
-
 
 /* TIM1 init function */
 void MX_TIM1_Init(void)									//通道三
@@ -224,15 +228,15 @@ void MX_TIM2_Init(void)									//通道一
 
 }
 /* TIM3 init function */
-void MX_TIM3_Init(void)									//通道二
+void MX_TIM3_Init(void)
 {
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
 
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 23;						//分频系数
+  htim3.Init.Prescaler = 23;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 0xffff;						//重装载值
+  htim3.Init.Period = 0xffff;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
   {
@@ -257,7 +261,8 @@ void MX_TIM3_Init(void)									//通道二
 
 }
 /* TIM6 init function */
-void MX_TIM6_Init(void)											//1秒进一次中断
+/*1秒进一次中断*/
+void MX_TIM6_Init(void)
 {
   TIM_MasterConfigTypeDef sMasterConfig;
 
@@ -279,15 +284,15 @@ void MX_TIM6_Init(void)											//1秒进一次中断
 
 }
 /* TIM8 init function */
-void MX_TIM8_Init(void)									//通道四
+void MX_TIM8_Init(void)
 {
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
 
   htim8.Instance = TIM8;
-  htim8.Init.Prescaler = 0;						  //分频系数
+  htim8.Init.Prescaler = 0;
   htim8.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim8.Init.Period = 0xffff;						//重装载值
+  htim8.Init.Period = 0xffff;
   htim8.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim8.Init.RepetitionCounter = 0;
   if (HAL_TIM_Base_Init(&htim8) != HAL_OK)
@@ -310,12 +315,10 @@ void MX_TIM8_Init(void)									//通道四
   {
     _Error_Handler(__FILE__, __LINE__);
   }
-
 }
 
 void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* tim_baseHandle)
 {
-
   GPIO_InitTypeDef GPIO_InitStruct;
   if(tim_baseHandle->Instance==TIM1)
   {
@@ -427,7 +430,6 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* tim_baseHandle)
 
 void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* tim_baseHandle)
 {
-
   if(tim_baseHandle->Instance==TIM1)
   {
   /* USER CODE BEGIN TIM1_MspDeInit 0 */
@@ -515,6 +517,48 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* tim_baseHandle)
 } 
 
 /* USER CODE BEGIN 1 */
+void timer_init(void)
+{
+    MX_TIM2_Init();
+    MX_TIM3_Init();
+    MX_TIM1_Init();
+    MX_TIM8_Init();
+    MX_TIM6_Init();
+}
+
+void channel_timer_on_off(channel_t chx, bool state)
+{
+    int i = 0;
+    channel_t channel_index = 1;
+    if (chx & CH1) {
+        if (state) {
+            HAL_TIM_Base_Start_IT(&htim2);
+        } else {
+            HAL_TIM_Base_Stop_IT(&htim2);
+        }
+    }
+    if (chx & CH2) {
+        if (state) {
+            HAL_TIM_Base_Start_IT(&htim3);
+        } else {
+            HAL_TIM_Base_Stop_IT(&htim3);
+        }
+    }
+    if (chx & CH3) {
+        if (state) {
+            HAL_TIM_Base_Start_IT(&htim1);
+        } else {
+            HAL_TIM_Base_Stop_IT(&htim1);
+        }
+    }
+    if (chx & CH4) {
+        if (state) {
+            HAL_TIM_Base_Start_IT(&htim8);
+        } else {
+            HAL_TIM_Base_Stop_IT(&htim8);
+        }
+    }
+}
 
 /* USER CODE END 1 */
 

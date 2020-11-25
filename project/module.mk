@@ -10,6 +10,7 @@ PROJECT_FILES = $(PROJECT_SRC)/src/main.c \
 				$(PROJECT_SRC)/src/stm32f4xx_it.c \
 				$(PROJECT_SRC)/src/stm32f4xx_hal_msp.c \
 				$(PROJECT_SRC)/src/system_stm32f4xx.c \
+				$(PROJECT_SRC)/src/syslog.c
 
 
 
