@@ -84,6 +84,7 @@ typedef struct {
     uint32_t std_value;
     uint32_t concentration;
     uint8_t calibrate;
+    uint8_t calibrate_cnt;
 
 } channel_context_t;
 
@@ -92,6 +93,7 @@ typedef struct {
     uint32_t freq_max:24;
     uint32_t freq_min:24;
     uint32_t freq_diff:24;
+
 } calibrate_data_section_t;
 
 typedef uint16_t concentration_data_t[4];
