@@ -109,6 +109,7 @@ clean:
 project_clen:
 	rm -rf $(BUILD_DIR)/Project
 flash:
+	st-flash --reset write app/Four_Channels.bin 0x8000000||exit 0
 	st-flash --reset write app/Four_Channels.bin 0x8000000||exit 1
 	@echo Flash done.
 
