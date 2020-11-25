@@ -86,6 +86,8 @@ static void fill_calibrate_feedback_chx(uint8_t *feedback);
 static void fill_concentration_feedback(uint8_t *feedback);
 static void update_concentration(uint8_t ch_x);
 
+void dump_chx_info(void);
+
 int main(void)
 {
     HAL_Init();
@@ -106,7 +108,7 @@ int main(void)
         if(RX_Flag==2)
 		{
 			RX_Flag=0;
-
+            hex_dump("received", RX_Buf, 14);
 			/********** 通道选择 开始 **********/
 			if(RX_Buf[3]==0x37)
 			{
@@ -126,7 +128,7 @@ int main(void)
 			/********** 接收到定标、测样指令 开始 **********/
 			else if( RX_Buf[3]==0x33 )												//定标指令51  0x33
 			{
-                LOG_I("start to 定标");
+                LOG_I("start to calibrate");
 				Order_Type=1;															//定标标志位
 
                 channel_timer_on_off(active_channel_mask, START);
@@ -144,11 +146,12 @@ int main(void)
             {
 				HAL_UART_Transmit_DMA(&huart2,Feedback,44);					//进行定标反馈和频率上传
                 LOG_I("upload feedback");
+                dump_chx_info();
             }
 
 			else if( RX_Buf[3]==0x35 )												//测样指令53  0x35
 			{
-                LOG_I("start to 测样");
+                LOG_I("start to measure");
                 reset_all_channel_calibrate();
 				Order_Type=2;															//测样标志位
 
@@ -164,6 +167,9 @@ int main(void)
             {
 				HAL_UART_Transmit_DMA(&huart2,Feedback,44);			//进行测样反馈和频率上传
                 LOG_I("upload feedback");
+                dump_chx_info();
+            } else {
+                LOG_I("unknow command!");
             }
 
 			/********** 接收到定标、测样指令 结束 **********/
@@ -172,7 +178,7 @@ int main(void)
 
 		/************ 定标 开始 ************/
 		if((Start_Calculate==0x01) && (Order_Type==1)) {
-            LOG_I("定标数据处理...");
+            LOG_I("process calibrate data...");
 
             __disable_irq();
 			Start_Calculate=0;
@@ -202,21 +208,26 @@ int main(void)
                 Feedback[2]=0x05;											//定标通过――5		//继续定标是――1
 			}
 			/************************* 此为预留功能，勿删 *************************/
-#ifdef CALIBRATE_ERROR_ENABLE
+#ifdef FEATURE_CALIBRATE_ERROR_ENABLE
 			else if(is_calibrate_any_channel_unknow_error()) {
 				Feedback[2]=0x01;															//定标通过――5		//继续定标是――1
+                LOG_E("some channel unkown error");
+
             } else if (is_calibrate_any_channel_known_error()) {
 				Feedback[2]=0x00;
 				Feedback[3]=chx_info[CH_1].calibrate;
 				Feedback[4]=chx_info[CH_2].calibrate;
 				Feedback[5]=chx_info[CH_3].calibrate;
 				Feedback[6]=chx_info[CH_4].calibrate;
+                LOG_E("some channel known error");
 
                 reset_all_channel_calibrate();
 			}
 #else
-			else			//使用预留功能时，这两行注释掉WTF
+			else {
 				Feedback[2]=0x01;	//定标通过――5		//继续定标是――1
+                LOG_E("Some problem, continuely calibrate");
+            }
 #endif
 
         Feedback[0]=0x0a;
@@ -231,6 +242,8 @@ int main(void)
 
         fill_calibrate_feedback_chx(&Feedback[8]);
 
+        dump_chx_info();
+
         reset_all_channel_freq_max();
 		}
 		/************ 定标 结束 ************/
@@ -238,7 +251,7 @@ int main(void)
 		/************ 浓度检测 开始 ************/
         if ((Start_Calculate==0x01) && (Order_Type==2))						//检测数据处理
         {
-            LOG_I("检测数据处理...");
+            LOG_I("process mesure data...");
             __disable_irq();
             Start_Calculate=0;
             __enable_irq();
@@ -267,6 +280,8 @@ int main(void)
             fill_concentration_feedback(&Feedback);
             fill_calibrate_feedback_chx(&Feedback[8]);
 
+            dump_chx_info();
+
             reset_all_channel_freq_max();
 		}
 
@@ -283,10 +298,27 @@ int main(void)
     }
 }
 
+void dump_chx_info(void)
+{
+    for (int i = 0; i < CH_CNT; i++) {
+        LOG_I("Channel_%d:", i+1);
+        printf("  freq_max:%d\n", chx_info[i].freq_max);
+        printf("  freq_min:%d\n", chx_info[i].freq_min);
+        printf("  freq_diff:%d\n", chx_info[i].freq_diff);
+        printf("  timer_cnt:%d\n", chx_info[i].timer_cnt);
+        printf("  std_value:%d\n", chx_info[i].std_value);
+        printf("  concentration:%d\n", chx_info[i].concentration);
+        printf("  calibrate:%d\n", chx_info[i].calibrate);
+        printf("  calibrate_cnt:%d\n", chx_info[i].calibrate_cnt);
+        printf("\n");
+    }
+}
+
 static void update_concentration(uint8_t ch_x)
 {
     chx_info[ch_x].freq_diff = chx_info[ch_x].freq_max - chx_info[ch_x].freq_min;
     chx_info[ch_x].concentration = ((float)chx_info[ch_x].freq_diff/chx_info[ch_x].std_value) * 1000;
+    LOG_I("CH_%d concentration:%d", ch_x+1, chx_info[ch_x].concentration);
 }
 
 static void fill_calibrate_feedback_chx(uint8_t *feedback)
@@ -298,6 +330,7 @@ static void fill_calibrate_feedback_chx(uint8_t *feedback)
         data[i].freq_diff = chx_info[i].freq_diff;
     }
     memcpy(feedback, data, sizeof(calibrate_data_section_t) * 4);
+    hex_dump("calibrate feedback:", feedback, sizeof(calibrate_data_section_t) * 4);
 }
 
 static void fill_concentration_feedback(uint8_t *feedback)
@@ -307,6 +340,7 @@ static void fill_concentration_feedback(uint8_t *feedback)
         data[i] = chx_info[i].concentration;
     }
     memcpy(feedback, data, sizeof(concentration_data_t));
+    hex_dump("concentration feedback:", feedback, sizeof(concentration_data_t));
 }
 
 void reset_all_channel_calibrate_count(void)
@@ -431,6 +465,7 @@ void calibrate_data_process(channel_t chx)
         LOG_I("input chx error!");
         return;
     }
+    LOG_I("Process CH_%d calibrate data", ch_x+1);
     if (chx_info[ch_x].calibrate == CALIBRATE_INIT)
 	{
         if (chx_info[ch_x].freq_diff < 8500000 && chx_info[ch_x].freq_diff <15000000) {
@@ -456,17 +491,19 @@ void calibrate_data_process(channel_t chx)
                     }
                 }
             } else {
-#ifdef CALIBRATE_ERROR_ENABLE
+#ifdef FEATURE_CALIBRATE_ERROR_ENABLE
                 chx_info[ch_x].calibrate_cnt = 0;
                 /*通道一 酶膜失活 [预留]*/
                 chx_info[ch_x].calibrate = CALIBRATE_ENZYME_DEACTIVATION;
+                LOG_I("ENZYME_DEACTIVATION");
 #endif
             }
         } else {
-#ifdef CALIBRATE_ERROR_ENABLE
+#ifdef FEATURE_CALIBRATE_ERROR_ENABLE
             chx_info[ch_x].calibrate_cnt = 0;
             /*通道一 数值异常 [预留]*/
             chx_info[ch_x].calibrate = CALIBRATE_VALUE_ERROR;
+            LOG_I("CALIBRATE_VALUE_ERROR");
 #endif
         }
     } else {
@@ -563,7 +600,7 @@ void assert_failed(uint8_t* file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
-     tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+     tex: LOG_I("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

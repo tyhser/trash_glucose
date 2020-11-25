@@ -66,3 +66,22 @@ void log_debug(const char *func, int line, const char *message, ...)
     vprint_module_log(func, line, PRINT_LEVEL_DEBUG, message, ap);
     va_end(ap);
 }
+
+void hex_dump(const char *name, const char *data, int length)
+{
+    int index = 0;
+    printf("%s:\n", name);
+    for (index = 0; index < length; index++) {
+        printf("%02X", (int)(data[index]));
+        if ((index + 1) % 16 == 0) {
+            printf("\n");
+            continue;
+        }
+        if (index + 1 != length) {
+            printf(" ");
+        }
+    }
+    if (0 != index && 0 != index % 16) {
+        printf("\n");//add one more blank line
+    }
+}

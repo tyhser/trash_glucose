@@ -46,6 +46,8 @@ extern void log_info(const char *func, int line, const char *message, ...);
 extern void log_debug(const char *func, int line, const char *message, ...);
 extern void (*syslog_assert_hook)(const char* expr, const char* func, uint32_t line);
 
+extern void hex_dump(const char *name, const char *data, int length);
+
 #ifdef SYSLOG_ASSERT_ENABLE
     #define SYSLOG_ASSERT(EXPR)                                                 \
     if (!(EXPR))                                                              \
