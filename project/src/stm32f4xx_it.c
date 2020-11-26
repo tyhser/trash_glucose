@@ -46,43 +46,41 @@ extern DMA_HandleTypeDef hdma_usart2_tx;
 extern UART_HandleTypeDef huart2;
 
 /******************************************************************************/
-/*            Cortex-M4 Processor Interruption and Exception Handlers         */ 
+/*            Cortex-M4 Processor Interruption and Exception Handlers         */
 /******************************************************************************/
 extern uint8_t RX_Buf[14],RX_Flag;
 uint8_t Rx_Cnt,Rx_Mark,Notarize;
 
-
 void USART2_IRQHandler(void)
 {
 	huart2.RxXferCount=14;
-	if( __HAL_UART_GET_FLAG(&huart2,UART_FLAG_RXNE) )
-	{	
+	if (__HAL_UART_GET_FLAG(&huart2,UART_FLAG_RXNE))
+	{
 		uint8_t temp2=USART2->DR;
-		if( (0x55==temp2) && (Rx_Cnt==0) )
+		if ((0x55 == temp2) && (Rx_Cnt == 0)) {
 			Rx_Mark=1;
-				
-		if( (1==Rx_Mark) && (0xAA==temp2) && (Rx_Cnt==0) )
+        }
+
+		if ((1 == Rx_Mark) && (0xAA == temp2) && (Rx_Cnt == 0)) {
 			Notarize=1;
-		
-		if(Notarize==1)
-		{
-			Rx_Cnt++;				
+        }
+
+		if (Notarize == 1) {
+			Rx_Cnt++;
 			RX_Buf[Rx_Cnt]=temp2;
 		}
-		
-		if( (Rx_Cnt==13) && (RX_Buf[1]==0xAA) && (RX_Buf[13]==0xA5) )
-		{
-			if( RX_Buf[2]==0x11 )				//检查板子编号是否为17
+
+		if ((Rx_Cnt == 13) && (RX_Buf[1] == 0xAA) && (RX_Buf[13] == 0xA5)) {
+			if (RX_Buf[2] == 0x11)				//检查板子编号是否为17
 				RX_Flag=2;
-			Rx_Cnt=0;
-			Rx_Mark=0;
-			Notarize=0;
-			RX_Buf[0]=0x55;
+			Rx_Cnt = 0;
+			Rx_Mark = 0;
+			Notarize = 0;
+			RX_Buf[0] = 0x55;
 		}
 	}
-  HAL_UART_IRQHandler(&huart2);
+    HAL_UART_IRQHandler(&huart2);
 }
-
 
 
 /**
