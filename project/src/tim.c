@@ -79,8 +79,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)		//定时器中断�
 
             /*33是反应30秒，23是反应20秒*/
 			if (Start_Count>=23) {
-                chx_info[CH_1].freq_max = chx_info[CH_1].freq_max * 24 + 10;
-                chx_info[CH_1].freq_min = chx_info[CH_1].freq_min * 24 + 10;
                 channel_timer_on_off(CH1, STOP);
                 chx_info[CH_1].freq_diff = chx_info[CH_1].freq_max - chx_info[CH_1].freq_min;
 
@@ -103,8 +101,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)		//定时器中断�
 			if(Start_Count>=23)								//33是反应30秒，23是反应20秒
 			{
                 /*获取通道二真实的最大频率值*/
-                chx_info[CH_2].freq_max = chx_info[CH_2].freq_max * 24 + 10;
-                chx_info[CH_2].freq_min = chx_info[CH_2].freq_min * 24 + 10;
                 channel_timer_on_off(CH2, STOP);
                 chx_info[CH_2].freq_diff = chx_info[CH_2].freq_max - chx_info[CH_2].freq_min;
                 LOG_I("ch2: freq_max:[%d]\tfreq_min:[%d]\tfreq_diff:[%d]", chx_info[CH_2].freq_max, chx_info[CH_2].freq_min, chx_info[CH_2].freq_diff);
@@ -125,8 +121,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)		//定时器中断�
 
 			if(Start_Count>=23)									//33是反应30秒，23是反应20秒
 			{
-                chx_info[CH_3].freq_max = chx_info[CH_3].freq_max * 24 + 10;
-                chx_info[CH_3].freq_min = chx_info[CH_3].freq_min * 24 + 10;
                 channel_timer_on_off(CH3, STOP);
                 chx_info[CH_3].freq_diff = chx_info[CH_3].freq_max - chx_info[CH_3].freq_min;
                 LOG_I("ch3: freq_max:[%d]\tfreq_min:[%d]\tfreq_diff:[%d]", chx_info[CH_3].freq_max, chx_info[CH_3].freq_min, chx_info[CH_3].freq_diff);
@@ -147,9 +141,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)		//定时器中断�
 
 			if(Start_Count>=23)								//33是反应30秒，23是反应20秒
 			{
-                chx_info[CH_4].freq_max = chx_info[CH_4].freq_max * 24 + 10;
-                chx_info[CH_4].freq_min = chx_info[CH_4].freq_min * 24 + 10;
-
                 channel_timer_on_off(CH4, STOP);
                 chx_info[CH_4].freq_diff = chx_info[CH_4].freq_max - chx_info[CH_4].freq_min;
                 LOG_I("ch4: freq_max:[%d]\tfreq_min:[%d]\tfreq_diff:[%d]", chx_info[CH_4].freq_max, chx_info[CH_4].freq_min, chx_info[CH_4].freq_diff);

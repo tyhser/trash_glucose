@@ -203,13 +203,14 @@ int main(void)
 			/************************ 定标结果判断 **********************/
             if (is_all_channel_calibrate_finish())
 			{
+                LOG_I("calibrate sucess!!");
                 reset_all_channel_calibrate();
-                Feedback[2]=0x05;											//定标通过――5		//继续定标是――1
+                Feedback[2]=0x05;				//定标通过――5		//继续定标是――1
 			}
 			/************************* 此为预留功能，勿删 *************************/
 #ifdef FEATURE_CALIBRATE_ERROR_ENABLE
 			else if(is_calibrate_any_channel_unknow_error()) {
-				Feedback[2]=0x01;															//定标通过――5		//继续定标是――1
+				Feedback[2]=0x01;				//定标通过――5		//继续定标是――1
                 LOG_E("some channel unkown error");
 
             } else if (is_calibrate_any_channel_known_error()) {
