@@ -42,6 +42,7 @@
 
 #include "gpio.h"
 #include "main.h"
+#include "syslog.h"
 
 /* USER CODE BEGIN 0 */
 #define CH_1 0
@@ -78,8 +79,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)		//定时器中断�
 
             /*33是反应30秒，23是反应20秒*/
 			if (Start_Count>=23) {
+                chx_info[CH_1].freq_max = chx_info[CH_1].freq_max * 24 + 10;
+                chx_info[CH_1].freq_min = chx_info[CH_1].freq_min * 24 + 10;
                 channel_timer_on_off(CH1, STOP);
                 chx_info[CH_1].freq_diff = chx_info[CH_1].freq_max - chx_info[CH_1].freq_min;
+
+                LOG_I("ch1: freq_max:[%d]\tfreq_min:[%d]\tfreq_diff:[%d]",chx_info[CH_1].freq_max, chx_info[CH_1].freq_min, chx_info[CH_1].freq_diff);
             }
 
 			TIM2->CNT=0;						//清掉定时器2的计数器
@@ -102,6 +107,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)		//定时器中断�
                 chx_info[CH_2].freq_min = chx_info[CH_2].freq_min * 24 + 10;
                 channel_timer_on_off(CH2, STOP);
                 chx_info[CH_2].freq_diff = chx_info[CH_2].freq_max - chx_info[CH_2].freq_min;
+                LOG_I("ch2: freq_max:[%d]\tfreq_min:[%d]\tfreq_diff:[%d]", chx_info[CH_2].freq_max, chx_info[CH_2].freq_min, chx_info[CH_2].freq_diff);
 			}
 
 			TIM3->CNT=0;									//清掉定时器2的计数器
@@ -123,6 +129,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)		//定时器中断�
                 chx_info[CH_3].freq_min = chx_info[CH_3].freq_min * 24 + 10;
                 channel_timer_on_off(CH3, STOP);
                 chx_info[CH_3].freq_diff = chx_info[CH_3].freq_max - chx_info[CH_3].freq_min;
+                LOG_I("ch3: freq_max:[%d]\tfreq_min:[%d]\tfreq_diff:[%d]", chx_info[CH_3].freq_max, chx_info[CH_3].freq_min, chx_info[CH_3].freq_diff);
 			}
 
 			TIM1->CNT=0;											//清掉定时器2的计数器
@@ -145,6 +152,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)		//定时器中断�
 
                 channel_timer_on_off(CH4, STOP);
                 chx_info[CH_4].freq_diff = chx_info[CH_4].freq_max - chx_info[CH_4].freq_min;
+                LOG_I("ch4: freq_max:[%d]\tfreq_min:[%d]\tfreq_diff:[%d]", chx_info[CH_4].freq_max, chx_info[CH_4].freq_min, chx_info[CH_4].freq_diff);
 			}
 
 			TIM8->CNT=0;									//清掉定时器2的计数器

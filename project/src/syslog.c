@@ -70,7 +70,7 @@ void log_debug(const char *func, int line, const char *message, ...)
 void hex_dump(const char *name, const char *data, int length)
 {
     int index = 0;
-    printf("%s:\n", name);
+    printf("%s: ", name);
     for (index = 0; index < length; index++) {
         printf("%02X", (int)(data[index]));
         if ((index + 1) % 16 == 0) {
