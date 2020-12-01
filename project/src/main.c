@@ -120,7 +120,7 @@ int main(void)
 
                 channel_timer_on_off(CH1|CH2|CH3|CH4, STOP);
 
-				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);					//已接收到数据 进行反馈
+                HAL_UART_Transmit(&huart2, RX_Buf, 14, 0xffff);
                 LOG_I("Send RX buf back");
  			}
 			/********** 通道选择 结束 **********/
@@ -138,13 +138,13 @@ int main(void)
 				HAL_TIM_Base_Start_IT(&htim6); 									//开启定时器6 基础定时器
 
                 LOG_I("start basic timer 6");
-				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);						//通讯反馈
+				HAL_UART_Transmit(&huart2, RX_Buf, 14, 0xffff);						//通讯反馈
                 LOG_I("Send RX buf back");
 			}
 
 			else if( RX_Buf[3]==0x34 )												//定标结果查询52  0x34
             {
-				HAL_UART_Transmit_DMA(&huart2,Feedback,44);					//进行定标反馈和频率上传
+				HAL_UART_Transmit(&huart2, Feedback, 44, 0xffff);					//进行定标反馈和频率上传
                 LOG_I("upload feedback");
                 dump_chx_info();
             }
@@ -159,13 +159,13 @@ int main(void)
 
 				HAL_TIM_Base_Start_IT(&htim6); 									//开启定时器6 基础定时器
                 LOG_I("start basic timer 6");
-				HAL_UART_Transmit_DMA(&huart2,RX_Buf,14);						//通讯反馈
+				HAL_UART_Transmit(&huart2, RX_Buf, 14, 0xffff);						//通讯反馈
                 LOG_I("Send RX buf back");
 			}
 
 			else if( RX_Buf[3]==0x36 )												//测样结果查询54  0x36
             {
-				HAL_UART_Transmit_DMA(&huart2,Feedback,44);			//进行测样反馈和频率上传
+				HAL_UART_Transmit(&huart2, Feedback, 44, 0xffff);			//进行测样反馈和频率上传
                 LOG_I("upload feedback");
                 dump_chx_info();
             } else {
