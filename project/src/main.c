@@ -55,6 +55,8 @@
 #define CH_3 2
 #define CH_4 3
 
+#define bswap24(x) ((((x) & 0xff0000u) >> 16) | (((x) & 0x0000ffu) << 16) | ((x) & 0x00ff00u))
+
 channel_context_t chx_info[4];
 
 void SystemClock_Config(void);
@@ -113,6 +115,7 @@ int main(void)
 			if(RX_Buf[3]==0x37)
 			{
                 LOG_I("Channel select");
+                active_channel_mask = 0;
                 active_channel_mask |= read_active_channel_mask(&RX_Buf[4]);
 
                 reset_all_channel_calibrate_count();
@@ -131,9 +134,8 @@ int main(void)
                 LOG_I("start to calibrate");
 				Order_Type=1;															//定标标志位
 
-                channel_timer_on_off(active_channel_mask, START);
                 LOG_I("Start active channel timer");
-
+                channel_timer_on_off(active_channel_mask, START);
 				HAL_TIM_Base_Start_IT(&htim6); 									//开启定时器6 基础定时器
 
                 LOG_I("start basic timer 6");
@@ -176,7 +178,7 @@ int main(void)
 		}
 
 		/************ 定标 开始 ************/
-		if((Start_Calculate==0x01) && (Order_Type==1)) {
+		if ((Start_Calculate == 0x01) && (Order_Type == 1)) {
             LOG_I("process calibrate data...");
 
             __disable_irq();
@@ -327,9 +329,9 @@ static void fill_calibrate_feedback_chx(uint8_t *feedback)
 {
     calibrate_data_section_t data[4];
     for (int i = 0; i < CH_CNT; i++) {
-        data[i].freq_max = chx_info[i].freq_max;
-        data[i].freq_min = chx_info[i].freq_min;
-        data[i].freq_diff = chx_info[i].freq_diff;
+        data[i].freq_max = bswap24(chx_info[i].freq_max);
+        data[i].freq_min = bswap24(chx_info[i].freq_min);
+        data[i].freq_diff = bswap24(chx_info[i].freq_diff);
         LOG_I("ch%d: freq_max:[%d]\tfreq_min:[%d]\tfreq_diff:[%d]", i+1, data[i].freq_max, data[i].freq_min, data[i].freq_diff);
     }
     memcpy(feedback, data, sizeof(calibrate_data_section_t) * 4);
@@ -340,7 +342,7 @@ static void fill_concentration_feedback(uint8_t *feedback)
 {
     concentration_data_t data;
     for (int i = 0; i < CH_CNT; i++) {
-        data[i] = chx_info[i].concentration;
+        data[i] = bswap24(chx_info[i].concentration);
     }
     memcpy(feedback, data, sizeof(concentration_data_t));
     hex_dump("concentration feedback:", feedback, sizeof(concentration_data_t));
@@ -473,7 +475,7 @@ void calibrate_data_process(channel_t chx)
 	{
         if (chx_info[ch_x].freq_diff < 8500000 && chx_info[ch_x].freq_max < 15000000) {
             /*定标结果判断  频率差小于10K即判断失活*/
-            if (chx_info[ch_x].freq_diff > 5000) {
+            if (chx_info[ch_x].freq_diff > 10000) {
                 chx_info[ch_x].calibrate_cnt++;
                 if (chx_info[ch_x].calibrate_cnt == 1) {
                     LOG_I("calibrate cnt == 1, std_value = %d", chx_info[ch_x].freq_diff);
@@ -485,7 +487,7 @@ void calibrate_data_process(channel_t chx)
                     chx_info[ch_x].concentration = ((float)chx_info[ch_x].freq_diff/chx_info[ch_x].std_value)*100;
                     LOG_I("ch%d: calibrate cnt == 2, concentration = %f", chx, chx_info[ch_x].concentration);
                     /*浓度值偏差大，重新设置分母*/
-                    if (chx_info[ch_x].concentration <=96 || 103 <= chx_info[ch_x].concentration) {
+                    if (chx_info[ch_x].concentration <= 99 || 101 <= chx_info[ch_x].concentration) {
                         /*通道一 本次定标不通过更新分母*/
                         LOG_I("ch%d difference between 2 freq_diff too large", chx);
                         chx_info[ch_x].std_value = chx_info[ch_x].freq_diff;
