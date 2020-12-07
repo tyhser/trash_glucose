@@ -65,11 +65,11 @@ void SystemClock_Config(void);
 extern uint8_t Start_Calculate;
 
 uint8_t RX_Buf[14], RX_Flag, Order_Type;
-uint8_t Feedback[44];				//定标及测样反馈数组
+uint8_t Feedback[44];
 
 uint8_t active_channel_mask;
 
-uint32_t LED_Count;			//LED灯
+uint32_t LED_Count;
 
 uint8_t read_active_channel_mask(uint8_t channel_words[4]);
 void channel_timer_on_off(channel_t chx, bool state);
@@ -107,14 +107,12 @@ int main(void)
     LOG_I("Init complete");
     while(1)
     {
-		/********** 串口数据接收 **********/
-        if(RX_Flag==2)
-		{
-			RX_Flag=0;
+		/*receive command*/
+        if (RX_Flag == 2) {
+			RX_Flag = 0;
             hex_dump("received", RX_Buf, 14);
-			/********** 通道选择 开始 **********/
-			if(RX_Buf[3]==0x37)
-			{
+			/*select channel*/
+			if (RX_Buf[3] == 0x37) {
                 LOG_I("Channel select");
                 active_channel_mask = 0;
                 active_channel_mask |= read_active_channel_mask(&RX_Buf[4]);
@@ -127,58 +125,55 @@ int main(void)
                 HAL_UART_Transmit(&huart2, RX_Buf, 14, 0xffff);
                 LOG_I("Send RX buf back");
  			}
-			/********** 通道选择 结束 **********/
+			/*select channel end*/
 
-			/********** 接收到定标、测样指令 开始 **********/
-			else if( RX_Buf[3]==0x33 )												//定标指令51  0x33
-			{
+			/*receive calibrate and measure command*/
+			else if (RX_Buf[3] == 0x33) {
                 LOG_I("start to calibrate");
-				Order_Type=1;															//定标标志位
+				Order_Type = 1;
 
                 LOG_I("Start active channel timer");
                 channel_timer_on_off(active_channel_mask, START);
-				HAL_TIM_Base_Start_IT(&htim6); 									//开启定时器6 基础定时器
+				HAL_TIM_Base_Start_IT(&htim6);
 
                 LOG_I("start basic timer 6");
-				HAL_UART_Transmit(&huart2, RX_Buf, 14, 0xffff);						//通讯反馈
+				HAL_UART_Transmit(&huart2, RX_Buf, 14, 0xffff);
                 LOG_I("Send RX buf back");
 			}
-
-			else if( RX_Buf[3]==0x34 )												//定标结果查询52  0x34
-            {
-				HAL_UART_Transmit(&huart2, Feedback, 44, 0xffff);					//进行定标反馈和频率上传
+            /*query for calibrate result*/
+			else if (RX_Buf[3] == 0x34) {
+				HAL_UART_Transmit(&huart2, Feedback, 44, 0xffff);
                 LOG_I("upload feedback");
                 dump_chx_info();
             }
-
-			else if( RX_Buf[3]==0x35 )												//测样指令53  0x35
-			{
+            /*receive measure command*/
+			else if (RX_Buf[3] == 0x35) {
                 LOG_I("start to measure");
                 reset_all_channel_calibrate();
-				Order_Type=2;															//测样标志位
+                /*flag for measure state*/
+				Order_Type=2;
 
                 channel_timer_on_off(active_channel_mask, START);
 
-				HAL_TIM_Base_Start_IT(&htim6); 									//开启定时器6 基础定时器
+				HAL_TIM_Base_Start_IT(&htim6);
                 LOG_I("start basic timer 6");
-				HAL_UART_Transmit(&huart2, RX_Buf, 14, 0xffff);						//通讯反馈
+				HAL_UART_Transmit(&huart2, RX_Buf, 14, 0xffff);
                 LOG_I("Send RX buf back");
 			}
 
-			else if( RX_Buf[3]==0x36 )												//测样结果查询54  0x36
-            {
-				HAL_UART_Transmit(&huart2, Feedback, 44, 0xffff);			//进行测样反馈和频率上传
+            /*query for measure result*/
+			else if(RX_Buf[3] == 0x36) {
+				HAL_UART_Transmit(&huart2, Feedback, 44, 0xffff);
                 LOG_I("upload feedback");
                 dump_chx_info();
             } else {
                 LOG_I("unknow command!");
             }
 
-			/********** 接收到定标、测样指令 结束 **********/
-
+			/*receive calibrate and measure command end*/
 		}
 
-		/************ 定标 开始 ************/
+		/*Calibrate*/
 		if ((Start_Calculate == 0x01) && (Order_Type == 1)) {
             LOG_I("process calibrate data...");
 
@@ -187,96 +182,87 @@ int main(void)
             __enable_irq();
 			Order_Type=0;
 
-			if (active_channel_mask & CH1)
-			{
+			if (active_channel_mask & CH1) {
                 calibrate_data_process(CH1);
 			}
-			if (active_channel_mask & CH2)
-			{
+			if (active_channel_mask & CH2) {
                 calibrate_data_process(CH2);
 			}
-			if (active_channel_mask & CH3)
-			{
+			if (active_channel_mask & CH3) {
                 calibrate_data_process(CH3);
 			}
-			if (active_channel_mask & CH4)
-			{
+			if (active_channel_mask & CH4) {
                 calibrate_data_process(CH4);
 			}
-			/************************ 定标结果判断 **********************/
-            if (is_all_channel_calibrate_finish())
-			{
+			/*judge calibrate result*/
+            if (is_all_channel_calibrate_finish()) {
                 LOG_I("calibrate sucess!!");
                 reset_all_channel_calibrate();
-                Feedback[2]=0x05;				//定标通过――5		//继续定标是――1
+                /*calibrate success:0x05, continue calibrate:0x01*/
+                Feedback[2] = 0x05;
 			}
-			/************************* 此为预留功能，勿删 *************************/
+			/*recive for error judge*/
 #ifdef FEATURE_CALIBRATE_ERROR_ENABLE
 			else if(is_calibrate_any_channel_unknow_error()) {
-				Feedback[2]=0x01;				//定标通过――5		//继续定标是――1
+				Feedback[2] = 0x01;
                 LOG_E("some channel unkown error");
 
             } else if (is_calibrate_any_channel_known_error()) {
-				Feedback[2]=0x00;
-				Feedback[3]=chx_info[CH_1].calibrate;
-				Feedback[4]=chx_info[CH_2].calibrate;
-				Feedback[5]=chx_info[CH_3].calibrate;
-				Feedback[6]=chx_info[CH_4].calibrate;
+				Feedback[2] = 0x00;
+				Feedback[3] = chx_info[CH_1].calibrate;
+				Feedback[4] = chx_info[CH_2].calibrate;
+				Feedback[5] = chx_info[CH_3].calibrate;
+				Feedback[6] = chx_info[CH_4].calibrate;
                 LOG_E("some channel known error");
 
                 reset_all_channel_calibrate();
 			}
 #else
 			else {
-				Feedback[2]=0x01;	//定标通过――5		//继续定标是――1
+				Feedback[2] = 0x01;
                 LOG_E("Some problem, continuely calibrate");
             }
 #endif
 
-        Feedback[0]=0x0a;
-        Feedback[1]=0x0c;
+            Feedback[0] = 0x0a;
+            Feedback[1] = 0x0c;
 
-        Feedback[3]=0x00;
-        Feedback[4]=0x00;
-        Feedback[5]=0x00;
-        Feedback[6]=0x00;
+            Feedback[3] = 0x00;
+            Feedback[4] = 0x00;
+            Feedback[5] = 0x00;
+            Feedback[6] = 0x00;
 
-        Feedback[7]=0x05;
+            Feedback[7] = 0x05;
 
-        fill_calibrate_feedback_chx(&Feedback[8]);
+            fill_calibrate_feedback_chx(&Feedback[8]);
 
-        dump_chx_info();
+            dump_chx_info();
 
-        reset_all_channel_freq_max();
+            reset_all_channel_freq_max();
 		}
-		/************ 定标 结束 ************/
+		/*calibrate end*/
 
-		/************ 浓度检测 开始 ************/
-        if ((Start_Calculate==0x01) && (Order_Type==2))						//检测数据处理
-        {
+		/*concentration measure*/
+        if ((Start_Calculate == 0x01) && (Order_Type == 2)) {
             LOG_I("process mesure data...");
             __disable_irq();
-            Start_Calculate=0;
+            Start_Calculate = 0;
             __enable_irq();
-            Order_Type=0;
+            Order_Type = 0;
 
-            if(active_channel_mask & CH1)				//通道一开启
-            {
+            if (active_channel_mask & CH1) {
                 update_concentration(CH_1);
             }
 
-            if(active_channel_mask & CH2)				//通道二开启
-            {
+            if (active_channel_mask & CH2) {
                 update_concentration(CH_2);
             }
 
-            if(active_channel_mask & CH3)				//通道三开启
-            {
+            if(active_channel_mask & CH3) {
                 update_concentration(CH_3);
             }
 
-            if(active_channel_mask & CH4)				//通道四开启
-            {
+            if (active_channel_mask & CH4) {
                 update_concentration(CH_4);
             }
 
@@ -287,9 +273,8 @@ int main(void)
 
             reset_all_channel_freq_max();
 		}
-		/************ 浓度检测 结束 ************/
+		/*concentration measure end*/
 
-		/********* LED灯闪烁 **********/
         LED_Count++;
         if (LED_Count % 4255999 == 0) {
             LED_Count = 0;
@@ -473,7 +458,6 @@ void calibrate_data_process(channel_t chx)
     if (chx_info[ch_x].calibrate == CALIBRATE_INIT)
 	{
         if (chx_info[ch_x].freq_diff < 8500000 && chx_info[ch_x].freq_max < 15000000) {
-            /*定标结果判断  频率差小于10K即判断失活*/
             if (chx_info[ch_x].freq_diff > 10000) {
                 chx_info[ch_x].calibrate_cnt++;
                 if (chx_info[ch_x].calibrate_cnt == 1) {
@@ -481,18 +465,14 @@ void calibrate_data_process(channel_t chx)
                     chx_info[ch_x].std_value = chx_info[ch_x].freq_diff;
                 }
                 if (chx_info[ch_x].calibrate_cnt == 2) {
-                    /*通道一 浓度计算，精确到1*/
                     LOG_I("before calculate concentration, current freq_diff:%d, std_value:%d", chx_info[ch_x].freq_diff, chx_info[ch_x].std_value);
                     chx_info[ch_x].concentration = ((float)chx_info[ch_x].freq_diff/chx_info[ch_x].std_value)*100;
                     LOG_I("ch%d: calibrate cnt == 2, concentration = %f", chx, chx_info[ch_x].concentration);
-                    /*浓度值偏差大，重新设置分母*/
                     if (chx_info[ch_x].concentration <= 96 || 103 <= chx_info[ch_x].concentration) {
-                        /*通道一 本次定标不通过更新分母*/
                         LOG_I("ch%d difference between 2 freq_diff too large", chx);
                         chx_info[ch_x].std_value = chx_info[ch_x].freq_diff;
                         chx_info[ch_x].calibrate_cnt = 1;
                     } else {
-						/*定标完成，清除calibrate count*/
                         LOG_I("ch%d calibrate success", chx);
                         chx_info[ch_x].calibrate_cnt = 0;
                         chx_info[ch_x].std_value = chx_info[ch_x].freq_diff;
@@ -502,7 +482,6 @@ void calibrate_data_process(channel_t chx)
             } else {
 #ifdef FEATURE_CALIBRATE_ERROR_ENABLE
                 chx_info[ch_x].calibrate_cnt = 0;
-                /*通道一 酶膜失活 [预留]*/
                 chx_info[ch_x].calibrate = CALIBRATE_ENZYME_DEACTIVATION;
                 LOG_I("ENZYME_DEACTIVATION");
 #endif
@@ -510,7 +489,6 @@ void calibrate_data_process(channel_t chx)
         } else {
 #ifdef FEATURE_CALIBRATE_ERROR_ENABLE
             chx_info[ch_x].calibrate_cnt = 0;
-            /*通道一 数值异常 [预留]*/
             chx_info[ch_x].calibrate = CALIBRATE_VALUE_ERROR;
             LOG_I("CALIBRATE_VALUE_ERROR");
 #endif

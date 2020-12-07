@@ -67,18 +67,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
 		Start_Count++;
 
-		if (is_chx_enable(CH1))
-        {
-            chx_info[CH_1].timer_cnt = TIM2->CNT;               //读取定时器2的计数器值
+		if (is_chx_enable(CH1)) {
+            chx_info[CH_1].timer_cnt = TIM2->CNT;
 
-            if (chx_info[CH_1].timer_cnt > chx_info[CH_1].freq_max)	//定标执行过程  取葡萄糖最大浓度值
+            if (chx_info[CH_1].timer_cnt > chx_info[CH_1].freq_max) {
                 chx_info[CH_1].freq_max = chx_info[CH_1].timer_cnt;
+            }
 
             if (Start_Count == 2) {
                 chx_info[CH_1].freq_min = chx_info[CH_1].timer_cnt;
             }
 
-        /*33是反应30秒，23是反应20秒*/
             if (Start_Count >= 23) {
                 channel_timer_on_off(CH1, STOP);
                 chx_info[CH_1].freq_diff = chx_info[CH_1].freq_max - chx_info[CH_1].freq_min;
@@ -89,19 +88,18 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
             TIM2->CNT=0;
 		}
 
-        if (is_chx_enable(CH2))
-        {
-            chx_info[CH_2].timer_cnt = TIM3->CNT;	//读取定时器2的计数器值
+        if (is_chx_enable(CH2)) {
+            chx_info[CH_2].timer_cnt = TIM3->CNT;
 
-			if (chx_info[CH_2].timer_cnt > chx_info[CH_2].freq_max)	//定标执行过程  取葡萄糖最大浓度值
+			if (chx_info[CH_2].timer_cnt > chx_info[CH_2].freq_max) {
                 chx_info[CH_2].freq_max = chx_info[CH_2].timer_cnt;
+            }
 
 			if (Start_Count == 2) {
                 chx_info[CH_2].freq_min = chx_info[CH_2].timer_cnt;
             }
 
 			if (Start_Count >= 23) {
-                /*获取通道二真实的最大频率值*/
                 channel_timer_on_off(CH2, STOP);
                 chx_info[CH_2].freq_max = chx_info[CH_2].freq_max * 24 + 10;
                 chx_info[CH_2].freq_min = chx_info[CH_2].freq_min * 24 + 10;
@@ -116,15 +114,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		{
             chx_info[CH_3].timer_cnt = TIM1->CNT;
 
-			if (chx_info[CH_3].timer_cnt > chx_info[CH_3].freq_max)	//定标执行过程  取葡萄糖最大浓度值
+			if (chx_info[CH_3].timer_cnt > chx_info[CH_3].freq_max) {
                 chx_info[CH_3].freq_max = chx_info[CH_3].timer_cnt;
+            }
 
 			if (Start_Count == 2) {
                 chx_info[CH_3].freq_min = chx_info[CH_3].timer_cnt;
             }
 
-			if (Start_Count >= 23)
-			{
+			if (Start_Count >= 23) {
                 channel_timer_on_off(CH3, STOP);
                 chx_info[CH_3].freq_max = chx_info[CH_3].freq_max * 24 + 10;
                 chx_info[CH_3].freq_min = chx_info[CH_3].freq_min * 24 + 10;
@@ -135,19 +133,18 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			TIM1->CNT=0;
 		}
 
-		if (is_chx_enable(CH4))
-		{
+		if (is_chx_enable(CH4)) {
             chx_info[CH_4].timer_cnt = TIM8->CNT;
 
-            if (chx_info[CH_4].timer_cnt > chx_info[CH_4].freq_max)	//定标执行过程  取葡萄糖最大浓度值
+            if (chx_info[CH_4].timer_cnt > chx_info[CH_4].freq_max) {
                 chx_info[CH_4].freq_max = chx_info[CH_4].timer_cnt;
+            }
 
 			if (Start_Count == 2) {
                 chx_info[CH_4].freq_min = chx_info[CH_4].timer_cnt;
             }
 
-			if (Start_Count >= 23)
-			{
+			if (Start_Count >= 23) {
                 channel_timer_on_off(CH4, STOP);
                 chx_info[CH_4].freq_max = chx_info[CH_4].freq_max * 24 + 10;
                 chx_info[CH_4].freq_min = chx_info[CH_4].freq_min * 24 + 10;
@@ -162,9 +159,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		if (Start_Count >= 23)
 		{
 			Start_Count = 0;
-			Start_Calculate = 0x01;						//定标检测结束标志位
-			HAL_TIM_Base_Stop_IT(&htim6); 				//检测完成，关闭定时器6
-			TIM6->CNT = 0;								//清除定时器6的计数值
+			Start_Calculate = 0x01;
+			HAL_TIM_Base_Stop_IT(&htim6);
+			TIM6->CNT = 0;
 		}
 
         //LOG_I("ch_%d: Start_Count:[%d], timer_cnt:[%d], freq_min:[%d]", CH_1+1, Start_Count, chx_info[CH_1].timer_cnt, chx_info[CH_1].freq_min);
@@ -179,9 +176,9 @@ void MX_TIM1_Init(void)
   TIM_MasterConfigTypeDef sMasterConfig;
 
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 23;						//分频系数  最大可以统计1500.000HZ的频率
+  htim1.Init.Prescaler = 23;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 0xffff;						//重装载值
+  htim1.Init.Period = 0xffff;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
@@ -207,7 +204,7 @@ void MX_TIM1_Init(void)
 
 }
 /* TIM2 init function */
-void MX_TIM2_Init(void)									//通道一
+void MX_TIM2_Init(void)
 {
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
@@ -273,7 +270,6 @@ void MX_TIM3_Init(void)
 
 }
 /* TIM6 init function */
-/*1秒进一次中断*/
 void MX_TIM6_Init(void)
 {
   TIM_MasterConfigTypeDef sMasterConfig;
