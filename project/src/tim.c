@@ -42,6 +42,7 @@
 
 #include "gpio.h"
 #include "main.h"
+#include "syslog.h"
 
 /* USER CODE BEGIN 0 */
 #define CH_1 0
@@ -60,108 +61,119 @@ TIM_HandleTypeDef htim8;
 extern channel_context_t chx_info[4];
 uint8_t Start_Calculate,Start_Count;
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)		//定时器中断回调函数
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 	if (htim == &htim6)
 	{
 		Start_Count++;
 
 		if (is_chx_enable(CH1))
-		{
-            chx_info[CH_1].timer_cnt = TIM2->CNT;				//读取定时器2的计数器值
+        {
+            chx_info[CH_1].timer_cnt = TIM2->CNT;               //读取定时器2的计数器值
 
-			if (chx_info[CH_1].timer_cnt > chx_info[CH_1].freq_max)	//定标执行过程  取葡萄糖最大浓度值
+            if (chx_info[CH_1].timer_cnt > chx_info[CH_1].freq_max)	//定标执行过程  取葡萄糖最大浓度值
                 chx_info[CH_1].freq_max = chx_info[CH_1].timer_cnt;
 
-			if(Start_Count==2)					//取第二秒的频率值
-                chx_info[CH_1].freq_min = chx_info[CH1].timer_cnt;
-
-            /*33是反应30秒，23是反应20秒*/
-			if (Start_Count>=23) {
-                channel_timer_on_off(CH1, STOP);
-                chx_info[CH_1].freq_diff = chx_info[CH_1].freq_max - chx_info[CH_1].freq_min;
+            if (Start_Count == 2) {
+                chx_info[CH_1].freq_min = chx_info[CH_1].timer_cnt;
             }
 
-			TIM2->CNT=0;						//清掉定时器2的计数器
+        /*33是反应30秒，23是反应20秒*/
+            if (Start_Count >= 23) {
+                channel_timer_on_off(CH1, STOP);
+                chx_info[CH_1].freq_diff = chx_info[CH_1].freq_max - chx_info[CH_1].freq_min;
+
+            //LOG_I("ch1: freq_max:[%d]\tfreq_min:[%d]\tfreq_diff:[%d]",chx_info[CH_1].freq_max, chx_info[CH_1].freq_min, chx_info[CH_1].freq_diff);
+            }
+
+            TIM2->CNT=0;
 		}
 
-        if(is_chx_enable(CH2))
+        if (is_chx_enable(CH2))
         {
             chx_info[CH_2].timer_cnt = TIM3->CNT;	//读取定时器2的计数器值
 
 			if (chx_info[CH_2].timer_cnt > chx_info[CH_2].freq_max)	//定标执行过程  取葡萄糖最大浓度值
                 chx_info[CH_2].freq_max = chx_info[CH_2].timer_cnt;
 
-			if(Start_Count==2)					//取第二秒的频率值
-                chx_info[CH_2].freq_min = chx_info[CH2].timer_cnt;
+			if (Start_Count == 2) {
+                chx_info[CH_2].freq_min = chx_info[CH_2].timer_cnt;
+            }
 
-			if(Start_Count>=23)								//33是反应30秒，23是反应20秒
-			{
+			if (Start_Count >= 23) {
                 /*获取通道二真实的最大频率值*/
+                channel_timer_on_off(CH2, STOP);
                 chx_info[CH_2].freq_max = chx_info[CH_2].freq_max * 24 + 10;
                 chx_info[CH_2].freq_min = chx_info[CH_2].freq_min * 24 + 10;
-                channel_timer_on_off(CH2, STOP);
                 chx_info[CH_2].freq_diff = chx_info[CH_2].freq_max - chx_info[CH_2].freq_min;
+                //LOG_I("ch2: freq_max:[%d]\tfreq_min:[%d]\tfreq_diff:[%d]", chx_info[CH_2].freq_max, chx_info[CH_2].freq_min, chx_info[CH_2].freq_diff);
 			}
 
-			TIM3->CNT=0;									//清掉定时器2的计数器
+			TIM3->CNT=0;
 		}
 
-		if(is_chx_enable(CH3))
+		if (is_chx_enable(CH3))
 		{
-            chx_info[CH_3].timer_cnt = TIM1->CNT;	//读取定时器2的计数器值
+            chx_info[CH_3].timer_cnt = TIM1->CNT;
 
 			if (chx_info[CH_3].timer_cnt > chx_info[CH_3].freq_max)	//定标执行过程  取葡萄糖最大浓度值
                 chx_info[CH_3].freq_max = chx_info[CH_3].timer_cnt;
 
-			if(Start_Count==2)							//取第二秒的频率值
-                chx_info[CH_3].freq_min = chx_info[CH3].timer_cnt;
+			if (Start_Count == 2) {
+                chx_info[CH_3].freq_min = chx_info[CH_3].timer_cnt;
+            }
 
-			if(Start_Count>=23)									//33是反应30秒，23是反应20秒
+			if (Start_Count >= 23)
 			{
+                channel_timer_on_off(CH3, STOP);
                 chx_info[CH_3].freq_max = chx_info[CH_3].freq_max * 24 + 10;
                 chx_info[CH_3].freq_min = chx_info[CH_3].freq_min * 24 + 10;
-                channel_timer_on_off(CH3, STOP);
                 chx_info[CH_3].freq_diff = chx_info[CH_3].freq_max - chx_info[CH_3].freq_min;
+                //LOG_I("ch3: freq_max:[%d]\tfreq_min:[%d]\tfreq_diff:[%d]", chx_info[CH_3].freq_max, chx_info[CH_3].freq_min, chx_info[CH_3].freq_diff);
 			}
 
-			TIM1->CNT=0;											//清掉定时器2的计数器
+			TIM1->CNT=0;
 		}
 
-		if(is_chx_enable(CH4))
+		if (is_chx_enable(CH4))
 		{
             chx_info[CH_4].timer_cnt = TIM8->CNT;
 
             if (chx_info[CH_4].timer_cnt > chx_info[CH_4].freq_max)	//定标执行过程  取葡萄糖最大浓度值
                 chx_info[CH_4].freq_max = chx_info[CH_4].timer_cnt;
 
-			if(Start_Count==2)								//取第二秒的频率值
-                chx_info[CH_4].freq_min = chx_info[CH4].timer_cnt;
+			if (Start_Count == 2) {
+                chx_info[CH_4].freq_min = chx_info[CH_4].timer_cnt;
+            }
 
-			if(Start_Count>=23)								//33是反应30秒，23是反应20秒
+			if (Start_Count >= 23)
 			{
+                channel_timer_on_off(CH4, STOP);
                 chx_info[CH_4].freq_max = chx_info[CH_4].freq_max * 24 + 10;
                 chx_info[CH_4].freq_min = chx_info[CH_4].freq_min * 24 + 10;
-
-                channel_timer_on_off(CH4, STOP);
                 chx_info[CH_4].freq_diff = chx_info[CH_4].freq_max - chx_info[CH_4].freq_min;
+                //LOG_I("ch4: freq_max:[%d]\tfreq_min:[%d]\tfreq_diff:[%d]", chx_info[CH_4].freq_max, chx_info[CH_4].freq_min, chx_info[CH_4].freq_diff);
 			}
 
-			TIM8->CNT=0;									//清掉定时器2的计数器
+			TIM8->CNT=0;
 		}
 
-		if(Start_Count>=23)									//33是反应30秒，23是反应20秒
+        /*after 23s*/
+		if (Start_Count >= 23)
 		{
-			Start_Count=0;
-			Start_Calculate=0x01;							//定标检测结束标志位
+			Start_Count = 0;
+			Start_Calculate = 0x01;						//定标检测结束标志位
 			HAL_TIM_Base_Stop_IT(&htim6); 				//检测完成，关闭定时器6
-			TIM6->CNT=0;									//清除定时器6的计数值
+			TIM6->CNT = 0;								//清除定时器6的计数值
 		}
+
+        //LOG_I("ch_%d: Start_Count:[%d], timer_cnt:[%d], freq_min:[%d]", CH_1+1, Start_Count, chx_info[CH_1].timer_cnt, chx_info[CH_1].freq_min);
+        //LOG_I("ch_%d: Start_Count:[%d], timer_cnt:[%d], freq_min:[%d]", CH_2+1, Start_Count, chx_info[CH_2].timer_cnt, chx_info[CH_2].freq_min);
 	}
 }
 
 /* TIM1 init function */
-void MX_TIM1_Init(void)									//通道三
+void MX_TIM1_Init(void)
 {
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
@@ -290,7 +302,7 @@ void MX_TIM8_Init(void)
   TIM_MasterConfigTypeDef sMasterConfig;
 
   htim8.Instance = TIM8;
-  htim8.Init.Prescaler = 0;
+  htim8.Init.Prescaler = 23;
   htim8.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim8.Init.Period = 0xffff;
   htim8.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
