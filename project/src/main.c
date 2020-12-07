@@ -56,6 +56,7 @@
 #define CH_4 3
 
 #define bswap24(x) ((((x) & 0xff0000u) >> 16) | (((x) & 0x0000ffu) << 16) | ((x) & 0x00ff00u))
+#define bswap16(x) ((((x) & 0xff00u) >> 8) | (((x) & 0x00ffu) << 8))
 
 channel_context_t chx_info[4];
 
@@ -286,17 +287,15 @@ int main(void)
 
             reset_all_channel_freq_max();
 		}
-
 		/************ 浓度检测 结束 ************/
-
 
 		/********* LED灯闪烁 **********/
         LED_Count++;
-        if(LED_Count%4255999==0) {
-            LED_Count=0;
+        if (LED_Count % 4255999 == 0) {
+            LED_Count = 0;
             HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_8);
         }
-        HAL_IWDG_Refresh(&hiwdg);			//IWDG看门狗喂狗
+        HAL_IWDG_Refresh(&hiwdg);
     }
 }
 
@@ -342,7 +341,7 @@ static void fill_concentration_feedback(uint8_t *feedback)
 {
     concentration_data_t data;
     for (int i = 0; i < CH_CNT; i++) {
-        data[i] = bswap24(chx_info[i].concentration);
+        data[i] = bswap16(chx_info[i].concentration);
     }
     memcpy(feedback, data, sizeof(concentration_data_t));
     hex_dump("concentration feedback:", feedback, sizeof(concentration_data_t));
@@ -487,7 +486,7 @@ void calibrate_data_process(channel_t chx)
                     chx_info[ch_x].concentration = ((float)chx_info[ch_x].freq_diff/chx_info[ch_x].std_value)*100;
                     LOG_I("ch%d: calibrate cnt == 2, concentration = %f", chx, chx_info[ch_x].concentration);
                     /*浓度值偏差大，重新设置分母*/
-                    if (chx_info[ch_x].concentration <= 99 || 101 <= chx_info[ch_x].concentration) {
+                    if (chx_info[ch_x].concentration <= 96 || 103 <= chx_info[ch_x].concentration) {
                         /*通道一 本次定标不通过更新分母*/
                         LOG_I("ch%d difference between 2 freq_diff too large", chx);
                         chx_info[ch_x].std_value = chx_info[ch_x].freq_diff;
